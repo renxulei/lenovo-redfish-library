@@ -22,8 +22,6 @@ import argparse
 import configparser
 import logging
 
-warnings.filterwarnings('ignore')
-
 def redfish_logger(file_name, log_format, log_level=logging.ERROR):
     formatter = logging.Formatter(log_format)
     fh = logging.FileHandler(file_name)

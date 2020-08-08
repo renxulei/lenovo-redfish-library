@@ -300,41 +300,34 @@ class LenovoRedfishClient(HttpClient):
 
         result = {}
         try:
-            # Login into the server and create a session
-            self.login()
             system_url = self.find_system_resource()
-
             result_bios = self.get_url(system_url + '/Bios')
-            if result_bios['ret'] == True:
-                if bios_get == "current":
-                    # Get the bios url resource
-                    result = {'ret': True, 'entries': result_bios['entries']['Attributes']}
-                else:
-                    # Get pending url
-                    pending_url = result_bios['entries']['@Redfish.Settings']['SettingsObject']['@odata.id']
-                    result_pending_url = self.get_url(pending_url)
-                    if result_pending_url['ret'] == False:
-                        result = result_pending_url
-                        return
+            if result_bios['ret'] == False:
+                return result_bios
 
-                    # Get the pending url resource
-                    pending_attribute = result_pending_url['entries']['Attributes']
-                    current_attribute = result_bios['entries']['Attributes']
-                    changed_attribute = {}
-                    for key in pending_attribute:
-                        if pending_attribute[key] != current_attribute[key]:
-                            changed_attribute[key] = pending_attribute[key]
-                    result = {'ret': True, 'entries': changed_attribute}
+            if bios_get == "current":
+                # Get the bios url resource
+                return {'ret': True, 'entries': result_bios['entries']['Attributes']}
             else:
-                result = result_bios
+                # Get pending url
+                pending_url = result_bios['entries']['@Redfish.Settings']['SettingsObject']['@odata.id']
+                result_pending_url = self.get_url(pending_url)
+                if result_pending_url['ret'] == False:
+                    return result_pending_url
+
+                # Get the pending url resource
+                pending_attribute = result_pending_url['entries']['Attributes']
+                current_attribute = result_bios['entries']['Attributes']
+                changed_attribute = {}
+                for key in pending_attribute:
+                    if pending_attribute[key] != current_attribute[key]:
+                        changed_attribute[key] = pending_attribute[key]
+                return {'ret': True, 'entries': changed_attribute}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get bios attributes. Error message: %s" % repr(e)}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result
+            msg = "Failed to get bios attributes. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def get_bios_attribute(self, attribute_name):
         """get bios attribute by user specified    
@@ -345,24 +338,20 @@ class LenovoRedfishClient(HttpClient):
         result = {}
         try:
             result_bios = self.get_all_bios_attributes()
-            if result_bios['ret'] == True:
-                attribute = result_bios['entries']
-                bios_attribute = {}
-                if attribute_name in attribute.keys():
-                    bios_attribute[attribute_name] = attribute[attribute_name]
-                    result = {'ret': True, 'entries': bios_attribute}
-                else:
-                    result = {'ret': False, 'msg': " No this attribute %s in the bios attribute" % attribute_name}
+            if result_bios['ret'] == False:
+                return result_bios
+
+            bios_attribute = {}
+            if attribute_name in result_bios['entries'].keys():
+                bios_attribute[attribute_name] = result_bios['entries'][attribute_name]
+                return {'ret': True, 'entries': bios_attribute}
             else:
-                result = result_bios
+                return {'ret': False, 'msg': " No this attribute %s in the bios attribute" % attribute_name}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get bios attribute %s. Error message: %s." % (attribute_name, repr(e))}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result
+            msg = "Failed to get bios attribute %s. Error message: %s." % (attribute_name, repr(e))
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def get_bios_attribute_metadata(self):
         """Get bios attribute metadata
@@ -370,18 +359,15 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            # Login into the server and create a session
-            self.login()
             system_url = self.find_system_resource()
-
             result = self.get_url(system_url + '/Bios')
 
-            if result['ret'] != True:
+            if result['ret'] == False:
                 return result
     
             # Get used AttributeRegistry from Bios url
             attribute_registry = result['entries']['AttributeRegistry']
-    
+
             # Find the AttributeRegistry json file uri from Registries
             registry_url = "/redfish/v1/Registries"
             result = self.get_url(registry_url)
@@ -393,8 +379,8 @@ class LenovoRedfishClient(HttpClient):
                 if attribute_registry in registry['@odata.id']:
                     bios_registry_url = registry['@odata.id']
             if bios_registry_url is None:
-                result = {'ret': False, 'msg': "Can not find %s in Registries" % (attribute_registry)}
-                return result
+                return {'ret': False, 'msg': "Can not find %s in Registries" % (attribute_registry)}
+
             result = self.get_url(bios_registry_url)
             if result['ret'] != True:
                 return result
@@ -407,15 +393,12 @@ class LenovoRedfishClient(HttpClient):
             filename = os.getcwd() + os.sep + bios_registry_json_url.split("/")[-1]
             with open(filename, 'w') as f:
                 json.dump(result['entries'], f, indent=2)
-            result = {'ret': True, 'msg': "Download Bios AttributeRegistry file %s" % (bios_registry_json_url.split("/")[-1])}    
+            return {'ret': True, 'msg': "Download Bios AttributeRegistry file %s" % (bios_registry_json_url.split("/")[-1])}    
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get bios attribute metadata. Error message: %s" % repr(e)}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result
+            msg = "Failed to get bios attribute metadata. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def get_bios_bootmode(self):
         """Get bios boot mode
@@ -424,38 +407,34 @@ class LenovoRedfishClient(HttpClient):
         result = {}
         try:
             result_bios = self.get_all_bios_attributes()
-            if result_bios['ret'] == True:
-                attributes = result_bios['entries']
-                bios_attribute = {}
-                attribute_bootmode = None
+            if result_bios['ret'] == False:
+                return result_bios
 
-                # firstly, search boot mode name which match with key exactly. 
+            attributes = result_bios['entries']
+            bios_attribute = {}
+            attribute_bootmode = None
+            
+            # firstly, search boot mode name which match with key exactly. 
+            for attribute in attributes.keys():
+                if attribute == "BootMode" or attribute == "SystemBootMode":
+                    attribute_bootmode = attribute
+                    break
+            
+            # secondly, if no key matchs perfectly, then search the attribute which contain boot mode name 
+            if attribute_bootmode == None:
                 for attribute in attributes.keys():
-                    if attribute == "BootMode" or attribute == "SystemBootMode":
+                    if "SystemBootMode" in attribute or "Boot Mode" in attribute or "Boot_Mode" in attribute:
                         attribute_bootmode = attribute
                         break
-                # secondly, if no key matchs perfectly, then search the attribute which contain boot mode name 
-                if attribute_bootmode == None:
-                    for attribute in attributes.keys():
-                        if "SystemBootMode" in attribute or "Boot Mode" in attribute or "Boot_Mode" in attribute:
-                            attribute_bootmode = attribute
-                            break
-                if attribute_bootmode == None:
-                    result = {'ret': False, 'msg': "Failed to find BootMode attribute in BIOS attributes."}
-                    return result
-                bios_attribute[attribute_bootmode] = attributes[attribute_bootmode]
-                result = {'ret': True, 'entries': bios_attribute}
-            else:
-                result = {'ret': False, 'msg': "Failed to get boot mode. Error message: %s" % result_bios['msg']}
-
+            if attribute_bootmode == None:
+                return {'ret': False, 'msg': "Failed to find BootMode attribute in BIOS attributes."}
+            bios_attribute[attribute_bootmode] = attributes[attribute_bootmode]
+            return {'ret': True, 'entries': bios_attribute}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get boot mode. Error message: %s" % repr(e)}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result
+            msg = "Failed to get boot mode. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def get_bmc_inventory(self):
         """Get BMC inventory    
@@ -463,8 +442,6 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            # Login into the server and create a session
-            self.login()
             manager_url = self.find_manager_resource()
             
             # Get the BMC information
@@ -475,8 +452,7 @@ class LenovoRedfishClient(HttpClient):
                     if key not in self.common_property_excluded:
                         bmc_info[key] = result_manager['entries'][key]
             else:
-                result = {'ret': False, 'msg': "Failed to get manager url. Error message: %s" % result_manager['msg']}
-                return result
+                return {'ret': False, 'msg': "Failed to get manager url. Error message: %s" % result_manager['msg']}
     
             # Get Manager NetworkProtocol resource
             result = self.get_bmc_networkprotocol()
@@ -498,15 +474,12 @@ class LenovoRedfishClient(HttpClient):
             if result['ret'] == True:
                 bmc_info['HostInterfaces'] = result['entries']
 
-            result = {'ret': True, 'entries': bmc_info}
+            return {'ret': True, 'entries': bmc_info}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get bmc inventory. Error message: %s" % repr(e)}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result
+            msg = "Failed to get bmc inventory. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def get_bmc_networkprotocol(self):
         """Get BMC network protocol which provide BMC's network services info.      
@@ -514,27 +487,21 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            # Login into the server and create a session
-            #self.login()
             manager_url = self.find_manager_resource()
-
             result_network = self.get_url(manager_url + '/NetworkProtocol')
-            if result_network['ret'] == True:
-                network_protocol = {}
-                for key in result_network['entries']:
-                    if key not in self.common_property_excluded:
-                        network_protocol[key] = result_network['entries'][key]
-                result = {'ret': True, 'entries': network_protocol}
-            else:
-                result = {'ret': False, 'msg': "Failed to get network protocol. Error message: %s" % result_network['msg']}
+            if result_network['ret'] == False:
+                return result_network
+
+            network_protocol = {}
+            for key in result_network['entries']:
+                if key not in self.common_property_excluded:
+                    network_protocol[key] = result_network['entries'][key]
+            return {'ret': True, 'entries': network_protocol}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get bmc's networkprotocol. Error message: %s" % repr(e)}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result
+            msg = "Failed to get bmc's networkprotocol. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def get_bmc_serialinterfaces(self):
         """Get BMC Serial Interfaces    
@@ -542,30 +509,24 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            # Login into the server and create a session
-            #self.login()
-            manager_url = self.find_manager_resource()
-            
+            manager_url = self.find_manager_resource()          
             result_serial = self.get_collection(manager_url + '/SerialInterfaces')
-            if result_serial['ret'] == True:               
-                serial_info_list = []                      
-                for member in result_serial['entries']:    
-                    serial_info = {}                       
-                    for key in member.keys():
-                        if key not in self.common_property_excluded:
-                            serial_info[key] = member[key]
-                    serial_info_list.append(serial_info)   
-                result = {'ret': True, 'entries': serial_info_list}
-            else:                                          
-                result = {'ret': False, 'msg': "Failed to get serial interfaces. Error message: %s" % result_serial['msg']}
+            if result_serial['ret'] == False:
+                return result_serial
+
+            serial_info_list = []                      
+            for member in result_serial['entries']:    
+                serial_info = {}                       
+                for key in member.keys():
+                    if key not in self.common_property_excluded:
+                        serial_info[key] = member[key]
+                serial_info_list.append(serial_info)   
+            return {'ret': True, 'entries': serial_info_list}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get bmc's serialinterfaces. Error message: %s" % repr(e)}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result
+            msg = "Failed to get bmc's serialinterfaces. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def get_bmc_ethernet_interfaces(self):
         """Get BMC inventory    
@@ -573,30 +534,24 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            # Login into the server and create a session
-            #self.login()
             manager_url = self.find_manager_resource()
-            
             result_ethernet = self.get_collection(manager_url + '/EthernetInterfaces')
-            if result_ethernet['ret'] == True:
-                ethernet_info_list = []
-                ethernet_info = {}
-                for member in result_ethernet['entries']:                       
-                    for key in member.keys():
-                        if key not in self.common_property_excluded:
-                            ethernet_info[key] = member[key]
-                    ethernet_info_list.append(ethernet_info)
-                result = {'ret': True, 'entries': ethernet_info_list}
-            else:
-                result = {'ret': False, 'msg': "Failed to get ethernet interfaces. Error message: %s" % result_ethernet['msg']}
+            if result_ethernet['ret'] == False:
+                return result_ethernet
+
+            ethernet_info_list = []
+            ethernet_info = {}
+            for member in result_ethernet['entries']:                       
+                for key in member.keys():
+                    if key not in self.common_property_excluded:
+                        ethernet_info[key] = member[key]
+                ethernet_info_list.append(ethernet_info)
+            return {'ret': True, 'entries': ethernet_info_list}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get bmc's ethernet. Error message: %s" % repr(e)}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result
+            msg = "Failed to get bmc's ethernet. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def get_bmc_virtual_media(self):
         """Get BMC Serial Interfaces
@@ -604,30 +559,24 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            # Login into the server and create a session
-            #self.login()
-            manager_url = self.find_manager_resource()
-            
-            result_vm = self.get_collection(manager_url + '/VirtualMedia')                                                           
-            if result_vm['ret'] == True:
-                vm_info_list = []                      
-                for member in result_vm['entries']:    
-                    vm_info = {}                       
-                    for key in member.keys():
-                        if key not in self.common_property_excluded:
-                            vm_info[key] = member[key]
-                    vm_info_list.append(vm_info)   
-                result = {'ret': True, 'entries': vm_info_list}
-            else:                                          
-                result = {'ret': False, 'msg': "Failed to get virtual media. Error message: %s" % result_vm['msg']}
+            manager_url = self.find_manager_resource()           
+            result_vm = self.get_collection(manager_url + '/VirtualMedia')
+            if result_vm['ret'] == False:
+                return result_vm
+
+            vm_info_list = []                      
+            for member in result_vm['entries']:    
+                vm_info = {}
+                for key in member.keys():
+                    if key not in self.common_property_excluded:
+                        vm_info[key] = member[key]
+                vm_info_list.append(vm_info)   
+            return {'ret': True, 'entries': vm_info_list}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get bmc's virtual media. Error message: %s" % repr(e)}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result
+            msg = "Failed to get bmc's virtual media. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def get_bmc_hostinterfaces(self):
         """Get BMC Host Interfaces    
@@ -635,49 +584,41 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            # Login into the server and create a session
-            #self.login()
             manager_url = self.find_manager_resource()
-            
-            result_hostinfs = self.get_collection(manager_url + '/HostInterfaces')                                                           
-            if result_hostinfs['ret'] == True:
-                hostinf_info_list = []                      
-                for member in result_hostinfs['entries']:    
-                    hostinf_info = {}
-                    for key in member.keys():
-                        if key not in (self.common_property_excluded + \
-                                       ["ManagerEthernetInterface"] + \
-                                       ["NetworkProtocol"]):
-                            hostinf_info[key] = member[key]
-                    if 'HostEthernetInterfaces' not in member.keys():
-                        hostinf_info_list.append(hostinf_info)
-                    hosteth_url = member["HostEthernetInterfaces"]['@odata.id']
-                    result_hosteth = self.get_collection(hosteth_url)
-                    if result_hosteth['ret'] == True:
-                        hosteth_info_list = []
-                        for member_eth in result_hosteth['entries']:
-                            hosteth_info = {}
-                            for key in member_eth.keys():
-                                if key not in self.common_property_excluded:
-                                    hosteth_info[key] = member_eth[key]
-                            hosteth_info_list.append(hosteth_info)
-                        hostinf_info['HostEthernetInterfaces'] = hosteth_info_list
+            result_hostinfs = self.get_collection(manager_url + '/HostInterfaces')
+            if result_hostinfs['ret'] == False:
+                return result_hostinfs
 
-                    else:
-                        result = {'ret': False, 'msg': "Failed to get host ethernet interfaces. Error message: %s" % result_hosteth['msg']}
-                        return
+            hostinf_info_list = []                      
+            for member in result_hostinfs['entries']:    
+                hostinf_info = {}
+                for key in member.keys():
+                    if key not in (self.common_property_excluded + \
+                                   ["ManagerEthernetInterface"] + \
+                                   ["NetworkProtocol"]):
+                        hostinf_info[key] = member[key]
+                if 'HostEthernetInterfaces' not in member.keys():
                     hostinf_info_list.append(hostinf_info)
-                result = {'ret': True, 'entries': hostinf_info_list}
-            else:                                          
-                result = {'ret': False, 'msg': "Failed to get host interfaces. Error message: %s" % result_hostinfs['msg']}
+                hosteth_url = member["HostEthernetInterfaces"]['@odata.id']
+                result_hosteth = self.get_collection(hosteth_url)
+                if result_hosteth['ret'] == True:
+                    hosteth_info_list = []
+                    for member_eth in result_hosteth['entries']:
+                        hosteth_info = {}
+                        for key in member_eth.keys():
+                            if key not in self.common_property_excluded:
+                                hosteth_info[key] = member_eth[key]
+                        hosteth_info_list.append(hosteth_info)
+                    hostinf_info['HostEthernetInterfaces'] = hosteth_info_list
+                else:
+                    return result_hosteth
+                hostinf_info_list.append(hostinf_info)
+            return {'ret': True, 'entries': hostinf_info_list}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get bmc's host interfaces. Error message: %s" % repr(e)}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result
+            msg = "Failed to get bmc's host interfaces. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def get_bmc_ntp(self):
         """Get BMC inventory    
@@ -685,26 +626,18 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            # Login into the server and get manager info
-            self.login()
             result_network = self.get_bmc_networkprotocol()
-
-            # Get Manager NetworkProtocol info
             ntp = {}
             if result_network['ret'] == True:
                 if "NTP" in result_network['entries']:
-                    ntp = result_network['entries']["NTP"]
-                    result = {'ret': True, 'entries': ntp}
+                    return {'ret': True, 'entries': result_network['entries']["NTP"]}
             else:
-                result = {'ret': False, 'msg': "Failed to get bmc's ntp. Error message: %s" % result_network['msg']}
+                return result_network
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get bmc ntp. Error message: %s" % repr(e)}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result
+            msg = "Failed to get bmc ntp. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def get_cpu_inventory(self):
         """Get cpu inventory
@@ -712,9 +645,6 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            # Login into the server and create a session
-            #self.login()
-
             # Find ComputerSystem resource's url
             system_url = self.find_system_resource()
 
@@ -722,7 +652,7 @@ class LenovoRedfishClient(HttpClient):
             result = self.get_collection(system_url + '/Processors')
             
             if result['ret'] == False:
-                result = {'ret': False, 'msg': "Failed to get cpu inventory. Error message: %s" % result['msg']}
+                return result
             
             list_cpu_info = []
             for member in result['entries']:
@@ -732,15 +662,12 @@ class LenovoRedfishClient(HttpClient):
                         if key not in self.common_property_excluded and 'Redfish.Deprecated' not in key:
                             cpu_info[key] = member[key]
                     list_cpu_info.append(cpu_info)
-            result = {'ret': True, 'entries': list_cpu_info}
+            return {'ret': True, 'entries': list_cpu_info}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get cpu inventory. Error message: %s" % repr(e)}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result
+            msg = "Failed to get cpu inventory. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def get_memory_inventory(self, member_id=None):
         """Get cpu inventory
@@ -750,9 +677,6 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            # Login into the server and create a session
-            #self.login()
-
             # Find ComputerSystem resource's url
             system_url = self.find_system_resource()
 
@@ -772,9 +696,9 @@ class LenovoRedfishClient(HttpClient):
                         list_memory_info.append(member)
                         break
                 if len(list_memory_info) == 0:
-                    result = {'ret': False, 'msg': "Failed to find the memory with id %s. \
+                    return {'ret': False, 'msg': "Failed to find the memory with id %s. \
                               Please check if the id is correct." % member_id}
-                    return result
+
             # Filter property
             entries = []
             for member in list_memory_info:
@@ -783,15 +707,12 @@ class LenovoRedfishClient(HttpClient):
                     if key not in self.common_property_excluded and 'Redfish.Deprecated' not in key:
                         memory_info[key] = member[key]
                 entries.append(memory_info)
-            result = {'ret': True, 'entries': entries}
+            return {'ret': True, 'entries': entries}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get cpu inventory. Error message: %s" % repr(e)}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result
+            msg = "Failed to get cpu inventory. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def get_system_ethernet_interfaces(self):
         """Get system EthernetInterfaces
@@ -799,9 +720,6 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            # Login into the server and create a session
-            #self.login()
-
             # Find ComputerSystem resource's url
             system_url = self.find_system_resource()
 
@@ -809,7 +727,7 @@ class LenovoRedfishClient(HttpClient):
             result = self.get_collection(system_url + '/EthernetInterfaces')
             
             if result['ret'] == False:
-                result = {'ret': False, 'msg': "Failed to get system ethernet interfaces. Error message: %s" % result['msg']}
+                return result
             
             list_nic_info = []
             for member in result['entries']:
@@ -818,15 +736,12 @@ class LenovoRedfishClient(HttpClient):
                     if key not in self.common_property_excluded and 'Redfish.Deprecated' not in key:
                         nic_info[key] = member[key]
                 list_nic_info.append(nic_info)
-            result = {'ret': True, 'entries': list_nic_info}
+            return {'ret': True, 'entries': list_nic_info}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get system ethernet interfaces. Error message: %s" % repr(e)}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result
+            msg = "Failed to get system ethernet interfaces. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def get_system_storage(self):
         """Get system storage resource
@@ -834,16 +749,13 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            # Login into the server and create a session
-            #self.login()
-
             # Find ComputerSystem resource's url
             system_url = self.find_system_resource()
 
             # Get the Processors collection
             result = self.get_collection(system_url + '/Storage')
             if result['ret'] == False:
-                result = {'ret': False, 'msg': "Failed to get system storage. Error message: %s" % result['msg']}
+                return result
             
             list_storage_info = []
             for member in result['entries']:
@@ -880,7 +792,7 @@ class LenovoRedfishClient(HttpClient):
                         return result_volumes
                     storage_info['Volumes'] = list_volumes
 
-                # ADD storage Controller
+                # Get storage Controller
                 if 'StorageControllers' in member:
                     list_controller = []
                     for controller in member['StorageControllers']:
@@ -893,15 +805,12 @@ class LenovoRedfishClient(HttpClient):
 
                 list_storage_info.append(storage_info)
 
-            result = {'ret': True, 'entries': list_storage_info}
+            return {'ret': True, 'entries': list_storage_info}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get system storage inventory. Error message: %s" % repr(e)}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result
+            msg = "Failed to get system storage inventory. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def get_system_simple_storage(self):
         """Get system's SimpleStorage inventory
@@ -909,9 +818,6 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            # Login into the server and create a session
-            #self.login()
-
             # Find ComputerSystem resource's url
             system_url = self.find_system_resource()
 
@@ -919,7 +825,7 @@ class LenovoRedfishClient(HttpClient):
             result = self.get_collection(system_url + '/SimpleStorage')
             
             if result['ret'] == False:
-                result = {'ret': False, 'msg': "Failed to get system SimpleStorage. Error message: %s" % result['msg']}
+                return result
             
             list_storage_info = []
             for member in result['entries']:
@@ -928,15 +834,12 @@ class LenovoRedfishClient(HttpClient):
                     if key not in self.common_property_excluded:
                         storage_info[key] = member[key]
                 list_storage_info.append(storage_info)
-            result = {'ret': True, 'entries': list_storage_info}
+            return {'ret': True, 'entries': list_storage_info}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get system SimpleStorage. Error message: %s" % repr(e)}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result
+            msg = "Failed to get system SimpleStorage. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def get_storage_inventory(self):
         """Get storage inventory    
@@ -944,11 +847,7 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            # Login into the server and create a session
-            self.login()
             manager_url = self.find_system_resource()
-            
-            # Get the storage information
             storage_info = {}
             
             # Get system Storage resource
@@ -961,15 +860,12 @@ class LenovoRedfishClient(HttpClient):
             if result['ret'] == True:
                 storage_info['SimpleStorage'] = result['entries']
     
-            result = {'ret': True, 'entries': storage_info}
+            return {'ret': True, 'entries': storage_info}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get storage inventory. Error message: %s" % repr(e)}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result
+            msg = "Failed to get storage inventory. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def get_system_inventory(self):
         """Get System inventory    
@@ -977,8 +873,6 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            # Login into the server and create a session
-            #self.login()
             system_url = self.find_system_resource()
             
             # Get the system information
@@ -993,23 +887,19 @@ class LenovoRedfishClient(HttpClient):
                                   + ['Bios'] and '@odata' not in key and '@Redfish' not in key:
                         system_info[key] = result_system['entries'][key]
             else:
-                result = {'ret': False, 'msg': "Failed to get system url. Error message: %s" % result_system['msg']}
-                return result
-    
+                return result_system
+
             # GET System EthernetInterfaces resources
             result = self.get_system_ethernet_interfaces()
             if result['ret'] == True:
                 system_info['EthernetInterfaces'] = result['entries']
 
-            result = {'ret': True, 'entries': system_info}
+            return {'ret': True, 'entries': system_info}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get system inventory. Error message: %s" % repr(e)}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result 
+            msg = "Failed to get system inventory. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def get_pci_inventory(self):
         """Get PCI devices inventory
@@ -1017,89 +907,78 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            # Login into the server and create a session
-            #self.login()
-
-            # Find ComputerSystem resource's url
+            # Find Chassis resource's url
             chassis_url = self.find_chassis_resource()
 
             # Get the Processors collection
             result = self.get_url(chassis_url)
             if result['ret'] == False:
-                result = {'ret': False, 'msg': "Failed to get pci inventory. Error message: %s" % result['msg']}
+                return result
             
+            list_pci_info = []
             if 'PCIeDevices' in result['entries']:
-                list_drives = []
-                for member in result['entries']['PCIeDevices']:
-                    result_pci = self.get_url(member['@odata.id'])
-                    if result_drive['ret'] == True:
-                        drive_info = {}
-                        for key in result_drive['entries'].keys():
-                            if key not in self.common_property_excluded and '@odata' not in key:
-                                drive_info[key] = result_drive['entries'][key]
-                        list_drives.append(drive_info)
-                    else:
-                        return result_drive
-                storage_info['Drives'] = list_drives
-            
-            
-            list_storage_info = []
-            for member in result['entries']:
-                storage_info = {}
-                for key in member.keys():
-                    if key not in self.common_property_excluded and '@Redfish' not in key and '@odata' not in key:
-                        storage_info[key] = member[key]
+                result_pci = self.get_collection(result['entries']['PCIeDevices']['@odata.id'])
+                if result_pci['ret'] == False:
+                    return result_pci
+                list_pci_info = propertyFilter(result_pci['entries'], self.common_property_excluded, ['@Redfish'])
 
-                if 'Drives' in member:
-                    list_drives = []
-                    for drive in member['Drives']:
-                        result_drive = self.get_url(drive['@odata.id'])
-                        if result_drive['ret'] == True:
-                            drive_info = {}
-                            for key in result_drive['entries'].keys():
-                                if key not in self.common_property_excluded and '@odata' not in key:
-                                    drive_info[key] = result_drive['entries'][key]
-                            list_drives.append(drive_info)
-                        else:
-                            return result_drive
-                    storage_info['Drives'] = list_drives
-
-                if 'Volumes' in member:
-                    result_volumes = self.get_collection(member['Volumes']['@odata.id'])
-                    list_volumes = []
-                    if result_volumes['ret'] == True:
-                        for volume in result_volumes['entries']:
-                            volume_info = {}
-                            for key in volume.keys():
-                                if key not in self.common_property_excluded and '@odata' not in key:
-                                    volume_info[key] = volume[key]
-                            list_volumes.append(volume_info)
-                    else:
-                        return result_volumes
-                    storage_info['Volumes'] = list_volumes
-
-                # ADD storage Controller
-                if 'StorageControllers' in member:
-                    list_controller = []
-                    for controller in member['StorageControllers']:
-                        controller_info = {}
-                        for key in controller.keys():
-                            if key not in self.common_property_excluded and '@odata' not in key:
-                                controller_info[key] = controller[key]
-                        list_controller.append(controller_info)
-                    storage_info['StorageControllers'] = list_controller
-
-                list_storage_info.append(storage_info)
-
-            result = {'ret': True, 'entries': list_storage_info}
+                for member in list_pci_info:
+                    if 'PCIeFunctions' in member:
+                        result_pci_func = self.get_collection(member['PCIeFunctions']['@odata.id'])
+                        if result_pci_func['ret'] == False:
+                            return result_pci_func
+                        data_filtered = propertyFilter(result_pci_func['entries'], self.common_property_excluded)
+                        member['PCIeFunctions'] = data_filtered
+                return {'ret': True, 'entries': list_pci_info}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            result = {'ret': False, 'msg': "Failed to get system storage inventory. Error message: %s" % repr(e)}
-            LOGGER.error("%s" % result['msg'])
-        finally:
-            # Logout of the current session
-            #self.logout()
-            return result
+            msg = "Failed to get chassis pci devices inventory. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def get_nic_inventory(self):
+        """Get network devices inventory
+        :returns: returns List of all network devices when succeeded or error message when failed
+        """
+        
+        # if failed, then try to get EthernetInterfaces' info from System.
+        result = {}
+        try:
+            # firstly, try to get NetworkAdapter's info from Chassis.
+            chassis_url = self.find_chassis_resource()
+            
+            list_nic_info = []
+            result_nic = self.get_collection(chassis_url + '/NetworkAdapters')
+            
+            if result_nic['ret'] == True:
+                list_nic_info = propertyFilter(result_nic['entries'], self.common_property_excluded, ['@Redfish'])
+                for member in list_nic_info:
+                    if 'NetworkDeviceFunctions' in member:
+                        result_nic_func = self.get_collection(member['NetworkDeviceFunctions']['@odata.id'])
+                        if result_nic_func['ret'] == False:
+                            return result_nic_func
+                        data_filtered = propertyFilter(result_nic_func['entries'], self.common_property_excluded)
+                        member['NetworkDeviceFunctions'] = data_filtered
+                    if 'NetworkPorts' in member:
+                        result_nic_ports = self.get_collection(member['NetworkPorts']['@odata.id'])
+                        if result_nic_ports['ret'] == False:
+                            return result_nic_ports
+                        data_filtered = propertyFilter(result_nic_ports['entries'], self.common_property_excluded)
+                        member['NetworkPorts'] = data_filtered
+                return {'ret': True, 'entries': list_nic_info}
+            else:
+                result = self.get_system_ethernet_interfaces()
+                if result['ret'] == True:
+                    return {'ret': True, 'entries': result['entries']}
+                else:
+                    return result
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get chassis network devices inventory. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+
 
 # TBU
 if __name__ == "__main__":
@@ -1122,9 +1001,9 @@ if __name__ == "__main__":
     #result = lenovo_redfish.get_system_ethernet_interfaces()
     #result = lenovo_redfish.get_system_inventory()
     #result = lenovo_redfish.get_system_storage()
-    result = lenovo_redfish.get_storage_inventory()
-    #result = lenovo_redfish.get_bmc_ntp()
-    #result = lenovo_redfish.get_bmc_ntp()
+    #result = lenovo_redfish.get_storage_inventory()
+    #result = lenovo_redfish.get_pci_inventory()
+    result = lenovo_redfish.get_nic_inventory()
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
@@ -1135,8 +1014,7 @@ if __name__ == "__main__":
     lenovo_redfish.logout()
 
     if result['ret'] is True:
-        del result['ret']
+        #del result['ret']
         sys.stdout.write(json.dumps(result['entries'], sort_keys=True, indent=2))
     else:
         sys.stderr.write(result['msg'] + '\n')
-  
