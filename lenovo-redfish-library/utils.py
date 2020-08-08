@@ -47,57 +47,50 @@ LOGGER = redfish_logger(LOGGERFILE, LOGGERFORMAT, logging.DEBUG)
     filtered_chassis = propertyFilter(data_chassis, properties)
 """
 
-def propertyFilter(data, properties):
+common_property_excluded = ["@odata.context", "@odata.id", "@odata.type", \
+                         "@odata.etag", "Links", "Actions", "RelatedItem"]
+
+def propertyFilter(data, properties_excluded=common_property_excluded, strings_excluded=[]):
     if isinstance(data, dict):
         filtered_data = {}
-        for property in properties:
-            if property in data:
-                filtered_data[property] = data[property]
-            elif '/' in property: # cann't handle list in path, only can handle dict
-                props = property.split('/')
-                curdata = data
-                prop_name = props[-1]
-                for prop in props:
-                    if prop in curdata:
-                        curdata = curdata[prop]
-                    else:
-                        curdata = None
-                        break
-                filtered_data[prop_name] = curdata
-            else:
-                filtered_data[property] = None
-                if 'Oem' in data and 'Lenovo' in data['Oem']:
-                    if property in data['Oem']['Lenovo']:
-                        filtered_data[property] = data['Oem']['Lenovo'][property]
+        for key in data.keys():
+            if key in properties_excluded:
+                continue
+            is_skiped = False
+            for str in strings_excluded:
+                if str in key:
+                    is_skiped = True
+                    break
+            if is_skiped == True:
+                continue
+            filtered_data[key] = data[key]
+        if 'Oem' in filtered_data and 'Lenovo' in filtered_data['Oem']:
+            filtered_oem_lenovo = propertyFilter(filtered_data['Oem']['Lenovo'], properties_excluded, strings_excluded)
+            filtered_data['Oem']['Lenovo'] = filtered_oem_lenovo
         return filtered_data
     elif isinstance(data, list):
         filtered_data = list()
         for member in data:
-            filtered_mem = {}
-            for property in properties:
-                if property in member:
-                    filtered_mem[property] = member[property]
-                elif '/' in property: # cann't handle list in path, only can handle dict
-                    props = property.split('/')
-                    curdata = member
-                    prop_name = props[-1]
-                    for prop in props:
-                        if prop in curdata:
-                            curdata = curdata[prop]
-                        else:
-                            curdata = None
-                            break
-                    filtered_mem[prop_name] = curdata
-                else:
-                    filtered_mem[property] = None
-                    if 'Oem' in member and 'Lenovo' in member['Oem']:
-                        if property in member['Oem']['Lenovo']:
-                            filtered_mem[property] = member['Oem']['Lenovo'][property]
-            filtered_data.append(filtered_mem)
+            filtered_member = {}
+            for key in member.keys():
+                if key in properties_excluded:
+                    continue
+                is_skiped = False
+                for str in strings_excluded:
+                    if str in key:
+                        is_skiped = True
+                        break
+                if is_skiped == True:
+                    continue
+                filtered_member[key] = member[key]
+            if 'Oem' in filtered_member and 'Lenovo' in filtered_member['Oem']:
+                filtered_oem_lenovo = propertyFilter(filtered_member['Oem']['Lenovo'], properties_excluded, strings_excluded)
+                filtered_member['Oem']['Lenovo'] = filtered_oem_lenovo
+
+            filtered_data.append(filtered_member)
         return filtered_data
     else:
         return data
-
 
 def getPropertyValue(data, property):
     if isinstance(data, dict):
