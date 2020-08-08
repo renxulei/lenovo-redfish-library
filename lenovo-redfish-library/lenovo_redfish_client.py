@@ -112,6 +112,7 @@ class LenovoRedfishClient(HttpClient):
         self.__suburl_manager = ''
         self.__suburl_chassis = ''
         self.__long_connection = False
+        self.__bmc_type = ''
 
         try:
             config_ini_info = {}
@@ -146,27 +147,22 @@ class LenovoRedfishClient(HttpClient):
                         username=self.__user, password=self.__password, \
                         default_prefix='/redfish/v1', capath=None, \
                         cafile=self.__cafile, timeout=None, max_retry=3)
+            """
+            result = self.get_url('/redfish/v1')
+            if result['ret'] == True:
+                if result['entries']['Vendor'] == 'Lenovo':
+                    self.__bmc_type = 'XCC'
+                else:
+                    self.__bmc_type = 'TSM'
+            """
         except Exception as e:
             LOGGER.error("Error_message: %s." % repr(e))
  
-    def get_systemid(self):
-        """Return used ComputerSystem resource id"""
-        return self.__systemid
-
-    def set_systemid(self, systemid):
-        """Set system id
-        :param systemid: ComputerSystem resource id.
-        :type systemid: str
-        """
-        if self.__systemid != systemid:
-            self.__systemid = systemid
-            self.__suburl_system = ''
-
     # Once enabling this, logout will not clear the session info.
     # When you want to run several functions continuously, 
     # you can enable this, this will save the time to setup connection. 
-    def enable_long_connection(self, is_enable=True):
-        """enable long connection"""
+    def set_long_connection(self, is_enable=True):
+        """enable/disable long connection"""
         self.__long_connection = is_enable
 
     def find_system_resource(self):
@@ -256,21 +252,20 @@ class LenovoRedfishClient(HttpClient):
             self.set_authorization_key(None)
 
     def get_url(self, suburl):
-        result = {}
         try:
             resp = self.get(suburl)
             if resp.status in [200]:
-                result = {'ret': True, 'entries': resp.dict}
+                return {'ret': True, 'entries': resp.dict}
             else:
                 msg = "Failed to get %s. Error message: %s" % (suburl, str(resp))
-                result = {'ret': False, 'msg': msg}
                 LOGGER.error(msg)
+                return {'ret': False, 'msg': msg}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
             msg = "Failed to get %s. Error message: %s" % (suburl, repr(e))
-            result = {'ret': False, 'msg': msg}
             LOGGER.error(msg)
-        return result
+            return {'ret': False, 'msg': msg}
+
 
     def get_collection(self, suburl):
         data = list()
@@ -448,22 +443,20 @@ class LenovoRedfishClient(HttpClient):
             bmc_info = {}
             result_manager = self.get_url(manager_url)
             if result_manager['ret'] == True:
-                for key in result_manager['entries'].keys():
-                    if key not in self.common_property_excluded:
-                        bmc_info[key] = result_manager['entries'][key]
+                bmc_info = propertyFilter(result_manager['entries'])
             else:
-                return {'ret': False, 'msg': "Failed to get manager url. Error message: %s" % result_manager['msg']}
-    
+                return result_manager
+
             # Get Manager NetworkProtocol resource
             result = self.get_bmc_networkprotocol()
             if result['ret'] == True:
                 bmc_info['NetworkProtocol'] = result['entries']
-    
+
             # GET Manager SerialInterfaces resources
             result = self.get_bmc_serialinterfaces()
             if result['ret'] == True:
                 bmc_info['SerialInterfaces'] = result['entries']
-    
+
             # GET Manager EthernetInterfaces resources
             result = self.get_bmc_ethernet_interfaces()
             if result['ret'] == True:
@@ -491,11 +484,7 @@ class LenovoRedfishClient(HttpClient):
             result_network = self.get_url(manager_url + '/NetworkProtocol')
             if result_network['ret'] == False:
                 return result_network
-
-            network_protocol = {}
-            for key in result_network['entries']:
-                if key not in self.common_property_excluded:
-                    network_protocol[key] = result_network['entries'][key]
+            network_protocol = propertyFilter(result_network['entries'])
             return {'ret': True, 'entries': network_protocol}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
@@ -516,11 +505,8 @@ class LenovoRedfishClient(HttpClient):
 
             serial_info_list = []                      
             for member in result_serial['entries']:    
-                serial_info = {}                       
-                for key in member.keys():
-                    if key not in self.common_property_excluded:
-                        serial_info[key] = member[key]
-                serial_info_list.append(serial_info)   
+                serial_info = propertyFilter(member)
+                serial_info_list.append(serial_info)
             return {'ret': True, 'entries': serial_info_list}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
@@ -529,7 +515,7 @@ class LenovoRedfishClient(HttpClient):
             return {'ret': False, 'msg': msg}
 
     def get_bmc_ethernet_interfaces(self):
-        """Get BMC inventory    
+        """Get BMC ethernet interfaces
         :returns: returns List of BMC nic when succeeded or error message when failed
         """
         result = {}
@@ -540,16 +526,13 @@ class LenovoRedfishClient(HttpClient):
                 return result_ethernet
 
             ethernet_info_list = []
-            ethernet_info = {}
             for member in result_ethernet['entries']:                       
-                for key in member.keys():
-                    if key not in self.common_property_excluded:
-                        ethernet_info[key] = member[key]
+                ethernet_info = propertyFilter(member)
                 ethernet_info_list.append(ethernet_info)
             return {'ret': True, 'entries': ethernet_info_list}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            msg = "Failed to get bmc's ethernet. Error message: %s" % repr(e)
+            msg = "Failed to get bmc's ethernet interfaces. Error message: %s" % repr(e)
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
@@ -566,10 +549,7 @@ class LenovoRedfishClient(HttpClient):
 
             vm_info_list = []                      
             for member in result_vm['entries']:    
-                vm_info = {}
-                for key in member.keys():
-                    if key not in self.common_property_excluded:
-                        vm_info[key] = member[key]
+                vm_info = propertyFilter(member)
                 vm_info_list.append(vm_info)   
             return {'ret': True, 'entries': vm_info_list}
         except Exception as e:
@@ -589,30 +569,22 @@ class LenovoRedfishClient(HttpClient):
             if result_hostinfs['ret'] == False:
                 return result_hostinfs
 
-            hostinf_info_list = []                      
-            for member in result_hostinfs['entries']:    
-                hostinf_info = {}
-                for key in member.keys():
-                    if key not in (self.common_property_excluded + \
-                                   ["ManagerEthernetInterface"] + \
-                                   ["NetworkProtocol"]):
-                        hostinf_info[key] = member[key]
-                if 'HostEthernetInterfaces' not in member.keys():
-                    hostinf_info_list.append(hostinf_info)
-                hosteth_url = member["HostEthernetInterfaces"]['@odata.id']
-                result_hosteth = self.get_collection(hosteth_url)
-                if result_hosteth['ret'] == True:
-                    hosteth_info_list = []
-                    for member_eth in result_hosteth['entries']:
-                        hosteth_info = {}
-                        for key in member_eth.keys():
-                            if key not in self.common_property_excluded:
-                                hosteth_info[key] = member_eth[key]
-                        hosteth_info_list.append(hosteth_info)
-                    hostinf_info['HostEthernetInterfaces'] = hosteth_info_list
-                else:
-                    return result_hosteth
-                hostinf_info_list.append(hostinf_info)
+            hostinf_info_list = propertyFilter(result_hostinfs['entries'])
+            for member in hostinf_info_list:
+                if 'HostEthernetInterfaces' in member.keys():
+                    host_eth_url = member["HostEthernetInterfaces"]['@odata.id']
+                    result_host_eth = self.get_collection(host_eth_url)
+                    if result_host_eth['ret'] == True: 
+                        member['HostEthernetInterfaces'] = propertyFilter(result_host_eth['entries'])
+                    else:
+                        return result_host_eth
+                if 'ManagerEthernetInterface' in member.keys():
+                    manager_eth_url = member["ManagerEthernetInterface"]['@odata.id']
+                    result_manager_eth = self.get_url(manager_eth_url)
+                    if result_manager_eth['ret'] == True: 
+                        member['ManagerEthernetInterface'] = propertyFilter(result_manager_eth['entries'])
+                    else:
+                        return result_manager_eth
             return {'ret': True, 'entries': hostinf_info_list}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
@@ -657,10 +629,7 @@ class LenovoRedfishClient(HttpClient):
             list_cpu_info = []
             for member in result['entries']:
                 if member["Status"]["State"] != 'Absent':
-                    cpu_info = {}
-                    for key in member.keys():
-                        if key not in self.common_property_excluded and 'Redfish.Deprecated' not in key:
-                            cpu_info[key] = member[key]
+                    cpu_info = propertyFilter(member)
                     list_cpu_info.append(cpu_info)
             return {'ret': True, 'entries': list_cpu_info}
         except Exception as e:
@@ -702,10 +671,7 @@ class LenovoRedfishClient(HttpClient):
             # Filter property
             entries = []
             for member in list_memory_info:
-                memory_info = {}
-                for key in member.keys():
-                    if key not in self.common_property_excluded and 'Redfish.Deprecated' not in key:
-                        memory_info[key] = member[key]
+                memory_info = propertyFilter(member)
                 entries.append(memory_info)
             return {'ret': True, 'entries': entries}
         except Exception as e:
@@ -759,20 +725,14 @@ class LenovoRedfishClient(HttpClient):
             
             list_storage_info = []
             for member in result['entries']:
-                storage_info = {}
-                for key in member.keys():
-                    if key not in self.common_property_excluded and '@Redfish' not in key and '@odata' not in key:
-                        storage_info[key] = member[key]
+                storage_info = propertyFilter(member)
 
                 if 'Drives' in member:
                     list_drives = []
                     for drive in member['Drives']:
                         result_drive = self.get_url(drive['@odata.id'])
                         if result_drive['ret'] == True:
-                            drive_info = {}
-                            for key in result_drive['entries'].keys():
-                                if key not in self.common_property_excluded and '@odata' not in key:
-                                    drive_info[key] = result_drive['entries'][key]
+                            drive_info = propertyFilter(result_drive['entries'])
                             list_drives.append(drive_info)
                         else:
                             return result_drive
@@ -783,10 +743,7 @@ class LenovoRedfishClient(HttpClient):
                     list_volumes = []
                     if result_volumes['ret'] == True:
                         for volume in result_volumes['entries']:
-                            volume_info = {}
-                            for key in volume.keys():
-                                if key not in self.common_property_excluded and '@odata' not in key:
-                                    volume_info[key] = volume[key]
+                            volume_info = propertyFilter(volume)
                             list_volumes.append(volume_info)
                     else:
                         return result_volumes
@@ -796,10 +753,7 @@ class LenovoRedfishClient(HttpClient):
                 if 'StorageControllers' in member:
                     list_controller = []
                     for controller in member['StorageControllers']:
-                        controller_info = {}
-                        for key in controller.keys():
-                            if key not in self.common_property_excluded and '@odata' not in key:
-                                controller_info[key] = controller[key]
+                        controller_info = propertyFilter(member)
                         list_controller.append(controller_info)
                     storage_info['StorageControllers'] = list_controller
 
@@ -829,10 +783,7 @@ class LenovoRedfishClient(HttpClient):
             
             list_storage_info = []
             for member in result['entries']:
-                storage_info = {}
-                for key in member.keys():
-                    if key not in self.common_property_excluded:
-                        storage_info[key] = member[key]
+                storage_info = propertyFilter(member)
                 list_storage_info.append(storage_info)
             return {'ret': True, 'entries': list_storage_info}
         except Exception as e:
@@ -867,6 +818,25 @@ class LenovoRedfishClient(HttpClient):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
+    def get_system_power_state(self):
+        """Get system's power state
+        :returns: returns Dict of system power state when succeeded or error message when failed
+        """
+        result = {}
+        try:
+            system_url = self.find_system_resource()
+            result = self.get_url(system_url)
+            if result['ret'] == False:
+                return result
+            power_state = {}
+            power_state['PowerState'] = result['entries']['PowerState']
+            return {'ret': True, 'entries': power_state}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get system power state. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
     def get_system_inventory(self):
         """Get System inventory    
         :returns: returns Dict of system inventory when succeeded or error message when failed
@@ -879,13 +849,10 @@ class LenovoRedfishClient(HttpClient):
             system_info = {}
             result_system = self.get_url(system_url)
             if result_system['ret'] == True:
-                for key in result_system['entries'].keys():
-                    if key not in self.common_property_excluded + ['LogServices']\
-                                  + ['MemoryDomains'] + ['Memory'] + ['NetworkInterfaces']\
-                                  + ['PCIeDevices'] + ['PCIeFunctions'] + ['Processors']\
-                                  + ['SimpleStorage'] + ['Storage'] + ['SecureBoot']\
-                                  + ['Bios'] and '@odata' not in key and '@Redfish' not in key:
-                        system_info[key] = result_system['entries'][key]
+                system_info = propertyFilter(result_system['entries'], \
+                    self.common_property_excluded + ['Processors', 'Memory', \
+                    'SecureBoot', 'Storage', 'PCIeDevices', 'PCIeFunctions', \
+                    'LogServices', 'PCIeDevices@odata.count', 'PCIeFunctions@odata.count'])
             else:
                 return result_system
 
@@ -907,29 +874,20 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            # Find Chassis resource's url
-            chassis_url = self.find_chassis_resource()
+            chassis_url = self.find_chassis_resource()        
+            result_pci = self.get_collection(chassis_url + '/PCIeDevices')
+            if result_pci['ret'] == False:
+                return result_pci
+            list_pci_info = propertyFilter(result_pci['entries'])
 
-            # Get the Processors collection
-            result = self.get_url(chassis_url)
-            if result['ret'] == False:
-                return result
-            
-            list_pci_info = []
-            if 'PCIeDevices' in result['entries']:
-                result_pci = self.get_collection(result['entries']['PCIeDevices']['@odata.id'])
-                if result_pci['ret'] == False:
-                    return result_pci
-                list_pci_info = propertyFilter(result_pci['entries'], self.common_property_excluded, ['@Redfish'])
-
-                for member in list_pci_info:
-                    if 'PCIeFunctions' in member:
-                        result_pci_func = self.get_collection(member['PCIeFunctions']['@odata.id'])
-                        if result_pci_func['ret'] == False:
-                            return result_pci_func
-                        data_filtered = propertyFilter(result_pci_func['entries'], self.common_property_excluded)
-                        member['PCIeFunctions'] = data_filtered
-                return {'ret': True, 'entries': list_pci_info}
+            for member in list_pci_info:
+                if 'PCIeFunctions' in member:
+                    result_pci_func = self.get_collection(member['PCIeFunctions']['@odata.id'])
+                    if result_pci_func['ret'] == False:
+                        return result_pci_func
+                    data_filtered = propertyFilter(result_pci_func['entries'])
+                    member['PCIeFunctions'] = data_filtered
+            return {'ret': True, 'entries': list_pci_info}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
             msg = "Failed to get chassis pci devices inventory. Error message: %s" % repr(e)
@@ -978,12 +936,125 @@ class LenovoRedfishClient(HttpClient):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
+    def get_fan_inventory(self):
+        """Get Fan devices inventory
+        :returns: returns List of all Fan devices when succeeded or error message when failed
+        """
+        try:
+            chassis_url = self.find_chassis_resource()        
+            result = self.get_url(chassis_url + '/Thermal')
+            if result['ret'] == False:
+                return result
+            list_fan_info = []
+            if 'Fans' in result['entries']:
+                list_fan_info = propertyFilter(result['entries']['Fans'], \
+                                               self.common_property_excluded + \
+                                               ['Oem'])
+            return {'ret': True, 'entries': list_fan_info}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get fan devices inventory. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def get_temperatures_inventory(self):
+        """Get temperatures inventory
+        :returns: returns List of all temperatures when succeeded or error message when failed
+        """
+        try:
+            chassis_url = self.find_chassis_resource()        
+            result = self.get_url(chassis_url + '/Thermal')
+            if result['ret'] == False:
+                return result
+            list_temp_info = []
+            if 'Temperatures' in result['entries']:
+                list_temp_info = propertyFilter(result['entries']['Temperatures'])
+            return {'ret': True, 'entries': list_temp_info}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get temperatures inventory. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def __get_power_info(self, property=None):
+        """Get property info from chassis power info 
+        :returns: returns List of property info of power when succeeded or error message when failed
+        """
+        try:
+            chassis_url = self.find_chassis_resource()        
+            result = self.get_url(chassis_url + '/Power')
+            if result['ret'] == False:
+                return result
+            
+            if property == None:
+                power_info = propertyFilter(result['entries'])
+                return {'ret': True, 'entries': power_info}
+            
+            list_property_info = []
+            if property in result['entries']:
+                list_property_info = propertyFilter(result['entries'][property])
+            return {'ret': True, 'entries': list_property_info}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get %s info. Error message: %s" % (property, repr(e))
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def get_psu_inventory(self):
+        """Get PSU devices inventory
+        :returns: returns List of all PSU devices when succeeded or error message when failed
+        """         
+        return self.__get_power_info('PowerSupplies')
+
+    def get_power_redundancy(self):
+        """Get power redundancy info
+        :returns: returns List of power redundancy info when succeeded or error message when failed
+        """
+        
+        return self.__get_power_info('Redundancy')
+
+    def get_power_voltages(self):
+        """Get power voltages info
+        :returns: returns List of power voltages info when succeeded or error message when failed
+        """
+        
+        return self.__get_power_info('Voltages')
+
+    def get_power_metrics(self):
+        """Get power voltages info
+        :returns: returns Dict of power metrics of whole system when succeeded or error message when failed
+        """
+        power_metrics = {}
+        result = self.__get_power_info('PowerControl')
+        if result['ret'] == False:
+            return result
+        for member in result['entries']:
+            if 'PowerMetrics' in member and 'Name' in member:
+                if 'Chassis' in member['Name'] or 'Server' in member['Name']:
+                    return {'ret': True, 'entries': member['PowerMetrics']}
+        return {'ret': False, 'msg': "No suitable power metrics exist."}
+
+    def get_power_limit(self):
+        """Get power voltages info
+        :returns: returns Dict of power metrics of whole system when succeeded or error message when failed
+        """
+        power_metrics = {}
+        result = self.__get_power_info('PowerControl')
+        if result['ret'] == False:
+            return result
+        for member in result['entries']:
+            if 'PowerLimit' in member:
+                return {'ret': True, 'entries': member['PowerLimit']}
+        return {'ret': False, 'msg': "No power limit exist."}
+
+
+
 
 
 # TBU
 if __name__ == "__main__":
     #read_config('config.ini')
-    lenovo_redfish = LenovoRedfishClient('10.245.39.153', 'renxulei', 'PASSW0RD12q')
+    lenovo_redfish = LenovoRedfishClient('10.245.39.251', 'renxulei', 'PASSW0RD12q')
     lenovo_redfish.login()
     #result = lenovo_redfish.get_cpu_inventory()
     #result = lenovo_redfish.get_all_bios_attributes('pending')
@@ -1003,7 +1074,15 @@ if __name__ == "__main__":
     #result = lenovo_redfish.get_system_storage()
     #result = lenovo_redfish.get_storage_inventory()
     #result = lenovo_redfish.get_pci_inventory()
-    result = lenovo_redfish.get_nic_inventory()
+    #result = lenovo_redfish.get_nic_inventory()
+    #result = lenovo_redfish.get_fan_inventory()
+    #result = lenovo_redfish.get_psu_inventory()
+    #result = lenovo_redfish.get_power_redundancy()
+    #result = lenovo_redfish.get_power_voltages()
+    #result = lenovo_redfish.get_power_metrics()
+    #result = lenovo_redfish.get_power_limit()
+    #result = lenovo_redfish.get_temperatures_inventory()
+    result = lenovo_redfish.get_system_power_state()
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
@@ -1011,6 +1090,8 @@ if __name__ == "__main__":
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
+    #result = lenovo_redfish.get_bmc_ntp()
+
     lenovo_redfish.logout()
 
     if result['ret'] is True:
