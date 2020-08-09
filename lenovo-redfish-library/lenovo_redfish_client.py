@@ -380,18 +380,42 @@ class LenovoRedfishClient(HttpClient):
             if result['ret'] != True:
                 return result
             bios_registry_json_url = result['entries']['Location'][0]['Uri']
-    
+
             # Download the AttributeRegistry json file
             result = self.get_url(bios_registry_json_url)
-            if result['ret'] != True:
-                return result
-            filename = os.getcwd() + os.sep + bios_registry_json_url.split("/")[-1]
-            with open(filename, 'w') as f:
-                json.dump(result['entries'], f, indent=2)
-            return {'ret': True, 'msg': "Download Bios AttributeRegistry file %s" % (bios_registry_json_url.split("/")[-1])}    
+            return result
+            #if result['ret'] != True:
+            #    return result
+            #filename = os.getcwd() + os.sep + bios_registry_json_url.split("/")[-1]
+            #with open(filename, 'w') as f:
+            #    json.dump(result['entries'], f, indent=2)
+            #return {'ret': True, 'msg': "Download Bios AttributeRegistry file %s" % (bios_registry_json_url.split("/")[-1])}    
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
             msg = "Failed to get bios attribute metadata. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def get_bios_attribute_available_value(self, attribute_name='all'):
+        """Get bios attribute's available value
+        :params attribute_name: Bios attribute name or 'all'
+        :type attribute_name: string
+        :returns: returns Dict of attribute_name's available value or List of all attributes
+        """
+        try:
+            result = self.get_bios_attribute_metadata()
+            if result['ret'] == False:
+                return result
+            bios_attribute_list = result['entries']["RegistryEntries"]["Attributes"]
+            if attribute_name == 'all':
+                return {'ret': True, 'entries': bios_attribute_list}
+            for bios_attribute in bios_attribute_list:
+                if attribute_name == bios_attribute['AttributeName']:
+                    return {'ret': True, 'entries': bios_attribute}
+            return {'ret': False, 'msg': "This bios attribute '%s' is not supported on this platform" % attribute_name}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get bios attribute's available value. Error message: %s" % repr(e)
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
@@ -1021,7 +1045,7 @@ class LenovoRedfishClient(HttpClient):
         return self.__get_power_info('Voltages')
 
     def get_power_metrics(self):
-        """Get power voltages info
+        """Get power metrics info
         :returns: returns Dict of power metrics of whole system when succeeded or error message when failed
         """
         power_metrics = {}
@@ -1030,13 +1054,13 @@ class LenovoRedfishClient(HttpClient):
             return result
         for member in result['entries']:
             if 'PowerMetrics' in member and 'Name' in member:
-                if 'Chassis' in member['Name'] or 'Server' in member['Name']:
-                    return {'ret': True, 'entries': member['PowerMetrics']}
-        return {'ret': False, 'msg': "No suitable power metrics exist."}
+                #if 'Chassis' in member['Name'] or 'Server' in member['Name']:
+                return {'ret': True, 'entries': member['PowerMetrics']}
+        return {'ret': False, 'msg': "No power metrics exist."}
 
     def get_power_limit(self):
-        """Get power voltages info
-        :returns: returns Dict of power metrics of whole system when succeeded or error message when failed
+        """Get power limit info
+        :returns: returns Dict of power limit of whole system when succeeded or error message when failed
         """
         power_metrics = {}
         result = self.__get_power_info('PowerControl')
@@ -1047,7 +1071,134 @@ class LenovoRedfishClient(HttpClient):
                 return {'ret': True, 'entries': member['PowerLimit']}
         return {'ret': False, 'msg': "No power limit exist."}
 
+    #############################################
+    # functions for setting.
+    #############################################
 
+    def get_system_reset_types(self):
+        """Get system's reset types
+        :returns: returns Dict of system reset types when succeeded or error message when failed
+        """
+        result = {}
+        try:
+            system_url = self.find_system_resource()
+            result = self.get_url(system_url)
+            if result['ret'] == False:
+                return result
+            if '@Redfish.ActionInfo' not in result['entries']["Actions"]["#ComputerSystem.Reset"]:
+                return {'ret': False, 'msg': "Failed to get system reset types."}
+            actioninfo_url = result['entries']['Actions']['#ComputerSystem.Reset']['@Redfish.ActionInfo']
+            result = self.get_url(actioninfo_url)
+            if result['ret'] == False:
+                return result
+            if "Parameters" in result['entries']:
+                for parameter in result['entries']["Parameters"]:
+                    if ("Name" in parameter) and (parameter["Name"] == "ResetType"):
+                        reset_types = {}
+                        if "AllowableValues" in parameter:
+                            reset_types["ResetType@Redfish.AllowableValues"] = parameter["AllowableValues"]
+                            return {'ret': True, 'entries': reset_types}
+            return {'ret': False, 'msg': "Failed to get system reset types."}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get system reset types. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def set_system_power_state(self, reset_type):
+        """Set system's power state, like on/off, restart.
+        :params reset_type: reset system type, for example: 'On', 'GracefulShutdown', 'ForceRestart'.
+        :type reset_type: string
+        :returns: returns the result to set system power state. 
+        """
+        result = {}
+        try:
+            system_url = self.find_system_resource()
+            result = self.get_url(system_url)
+            if result['ret'] == False:
+                return result
+            target_url = result['entries']["Actions"]["#ComputerSystem.Reset"]["target"]
+            post_body = {"ResetType": reset_type}
+            post_response = self.post(target_url, body=post_body)
+            # If Response return 200/OK, return successful , else print the response Error code
+            if post_response.status in [200, 202, 204]:
+                return {'ret': True, 'msg': "Succeed to set system '%s'." % reset_type}
+            else:
+                LOGGER.error(str(post_response))
+                return {'ret': False, 'msg': "Failed to set system '%s'. Error code is %s. Error message is %s. " % \
+                        (reset_type, post_response.status, post_response.text)}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to set system power state. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def set_bios_attribute(self, attribute_name, attribute_value):
+        """Set bios attribute.
+        :params attribute_name: Bios attribute name
+        :type attribute_name: string
+        :params attribute_value: new value of Bios attribute
+        :type attribute_value: string
+        :returns: returns the result to set bios attribute result
+        """
+        result = {}
+        try:
+            system_url = self.find_system_resource()
+            result = self.get_url(system_url + '/Bios')
+            if result['ret'] == False:
+                return result
+
+            if "SettingsObject" in result['entries']['@Redfish.Settings'].keys():
+                pending_url = result['entries']['@Redfish.Settings']['SettingsObject']['@odata.id']
+            else:
+                if 'Self' in system_url:
+                    pending_url = bios_url + "/SD" # TSM
+                else:
+                    pending_url = bios_url + "/Pending" # XCC
+            result = self.get_bios_attribute_available_value(attribute_name)
+            if result['ret'] == False:
+                return result
+            
+            parameter = {}
+            attribute = result['entries']
+            if attribute['Type'] == "Integer":
+                try:
+                    attribute_value = int(attribute_value)
+                    parameter = {attribute_name: attribute_value}
+                except:
+                    result = {'ret': False, 'msg': "Please check the attribute value, this should be a number."}
+                    return result
+            elif attribute['Type'] == "Boolean":
+                if attribute_value.upper() == "TRUE":
+                    parameter = {attribute_name: True}
+                elif attribute_value.upper() == "FALSE":
+                    parameter = {attribute_name: False}
+                else:
+                    result = {'ret': False, 'msg': "Please check the attribute value, this value is 'true' or 'false'."}
+                    return result
+            else:
+                parameter = {attribute_name: attribute_value}
+
+            if parameter:
+                attribute = {"Attributes": parameter}
+            headers = {"If-Match": "*", "Content-Type": "application/json"}
+            patch_response = self.patch(pending_url, headers = headers, body=attribute)
+            if patch_response.status in [200,204]:
+                result = {'ret': True, 'msg': 'Succeed to set %s.'% attribute_name }
+            elif patch_response.status == 400:
+                result = {'ret': False, 'msg': "Setting of %s is not supported on this platform" % attribute_name}
+            elif patch_response.status == 405:
+                result = {'ret': False, 'msg': "Resource not supported"}
+            else:
+                LOGGER.error(str(patch_response))
+                result = {'ret': False, 'msg': "Failed to set '%s'. Error code is %s. Error message is %s. " % \
+                        (attribute_name, patch_response.status, patch_response.text)}
+            return result
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to set bios attribute. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
 
 
@@ -1082,11 +1233,11 @@ if __name__ == "__main__":
     #result = lenovo_redfish.get_power_metrics()
     #result = lenovo_redfish.get_power_limit()
     #result = lenovo_redfish.get_temperatures_inventory()
-    result = lenovo_redfish.get_system_power_state()
-    #result = lenovo_redfish.get_bmc_ntp()
-    #result = lenovo_redfish.get_bmc_ntp()
-    #result = lenovo_redfish.get_bmc_ntp()
-    #result = lenovo_redfish.get_bmc_ntp()
+    #result = lenovo_redfish.get_system_power_state()
+    #result = lenovo_redfish.set_system_power_state('On')
+    #result = lenovo_redfish.get_system_reset_types()
+    #result = lenovo_redfish.get_bios_attribute_available_value('OperatingModes_ChooseOperatingMode')
+    result = lenovo_redfish.set_bios_attribute('OperatingModes_ChooseOperatingMode', 'MaximumPerformance')
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
@@ -1096,6 +1247,9 @@ if __name__ == "__main__":
 
     if result['ret'] is True:
         #del result['ret']
-        sys.stdout.write(json.dumps(result['entries'], sort_keys=True, indent=2))
+        if 'msg' in result:
+            print(result['msg'])
+        if 'entries' in result:
+            print(json.dumps(result['entries'], sort_keys=True, indent=2))
     else:
-        sys.stderr.write(result['msg'] + '\n')
+        print(result['msg'])
