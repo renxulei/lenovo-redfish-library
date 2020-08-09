@@ -72,7 +72,7 @@ class LenovoRedfishClient(HttpClient):
     """A client for accessing lenovo Redfish service"""
 
     common_property_excluded = ["@odata.context", "@odata.id", "@odata.type", \
-                         "@odata.etag", "Links", "Actions", "RelatedItem"]
+                         "@odata.etag", "Description", "Actions", "RelatedItem"]
 
     def __init__(self, ip='', username='', password='', \
                                 configfile='config.ini', \
@@ -1145,7 +1145,7 @@ class LenovoRedfishClient(HttpClient):
         try:
             system_url = self.find_system_resource()
             result = self.get_url(system_url + '/Bios')
-            if result['ret'] == False:
+            if result['ret'] == False: 
                 return result
 
             if "SettingsObject" in result['entries']['@Redfish.Settings'].keys():
@@ -1185,10 +1185,6 @@ class LenovoRedfishClient(HttpClient):
             patch_response = self.patch(pending_url, headers = headers, body=attribute)
             if patch_response.status in [200,204]:
                 result = {'ret': True, 'msg': 'Succeed to set %s.'% attribute_name }
-            elif patch_response.status == 400:
-                result = {'ret': False, 'msg': "Setting of %s is not supported on this platform" % attribute_name}
-            elif patch_response.status == 405:
-                result = {'ret': False, 'msg': "Resource not supported"}
             else:
                 LOGGER.error(str(patch_response))
                 result = {'ret': False, 'msg': "Failed to set '%s'. Error code is %s. Error message is %s. " % \
@@ -1200,12 +1196,142 @@ class LenovoRedfishClient(HttpClient):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
+    def lenovo_get_bmc_users(self):
+        """Get bmc user accounts
+        :returns: returns List of bmc user accounts.
+        """
+        result = {}
+        try:
+            result = self.get_collection('/redfish/v1/AccountService/Accounts')
+            if result['ret'] == False:
+                return result
+
+            account_info_list = []
+            for member in result['entries']:
+                if "Links" in member and "Role" in member["Links"]:
+                    accounts_role_url = member["Links"]["Role"]["@odata.id"]
+                    # Get the BMC user privileges info
+                    result_role = self.get_url(accounts_role_url)
+                    if result_role['ret'] == False:
+                        return result_role
+                    privileges = result_role['entries']["AssignedPrivileges"]
+                    member['AssignedPrivileges'] = privileges
+                    if "OemPrivileges" in result_role['entries']:
+                        oem_privileges = result_role['entries']["OemPrivileges"]
+                        member['OemPrivileges'] = oem_privileges
+                    filtered_data = propertyFilter(member,strings_excluded=['Links'])
+                    account_info_list.append(filtered_data)
+            return {'ret': True, 'entries': account_info_list}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get bmc's user accounts. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def __check_bmc_type(self):
+        manager_url = self.find_manager_resource()
+        if 'Self' in manager_url:
+            return 'TSM'
+        else:
+            return 'XCC'
+
+    def lenovo_create_bmc_user(self, username, password, list_authority):
+        """Create new bmc user account
+        :params username: new  username
+        :type username: string
+        :params password: new password
+        :type password: string
+        :params authority: user authority list, you can specify multiple authority.
+        :type authority: list
+        :returns: returns result of creating bmc user account.
+        """
+        result = {}
+        try:
+            accounts_url = '/redfish/v1/AccountService/Accounts'
+            bmc_type = self.__check_bmc_type()
+            # for TSM (SR635/655)
+            if bmc_type == 'TSM':
+                # Set user privilege
+                # for TSM, only accept 'Supervisor', 'Administrator', 'Operator' and 'ReadOnly'
+                rolename = ""
+                if "Supervisor" in list_authority:
+                    rolename = "Administrator"
+                elif "Operator" in list_authority:
+                    rolename = "Operator"
+                elif "ReadOnly" in list_authority:
+                    rolename = "ReadOnly"
+                else:
+                    rolename = list_authority[0]
+                #create new user account
+                headers = None
+                parameter = {
+                    "Password": password,
+                    "Name": username,
+                    "UserName": username,
+                    "RoleId":rolename
+                    }
+                post_response = self.post(accounts_url, body=parameter, headers=headers)
+                if post_response.status in [200, 201, 202, 204]:
+                    return {'ret': True, 'msg': "Succeed to create new user '%s'." % username}
+                else:
+                    LOGGER.error(str(post_response))
+                    return {'ret': False, 'msg': "Failed to create new user '%s'. Error code is %s. Error message is %s. " % \
+                            (username, post_response.status, post_response.text)}          
+            
+            # for XCC
+            result = self.get_collection('/redfish/v1/AccountService/Accounts')
+            if result['ret'] == False:
+                return result
+
+            account_url = ''
+            for member in result['entries']:
+                if member['UserName'] == username:
+                    return {'ret': False, 'msg': "User '%s' existed." % username}
+                if member['UserName'] != '':
+                    continue
+                
+                # found first empty account
+                account_url = member['@odata.id']
+                role_url = member["Links"]["Role"]["@odata.id"]
+                #result_role = self.get_url(roleuri)
+                parameter = {
+                    "OemPrivileges": list_authority
+                }
+                patch_response = self.patch(role_url, body=parameter)
+                if patch_response.status not in [200, 204]:
+                    result = {'ret': False, 'msg': "Failed to set the privileges. \
+                              Error code is %s. Error message is %s. " % \
+                              (post_response.status, post_response.text)}
+                    return result
+                if "@odata.etag" in member:
+                    etag = member['@odata.etag']
+                else:
+                    etag = ""
+                headers = {"If-Match": etag}
+                parameter = {
+                    "Password": password,
+                    "UserName": username
+                    }
+                patch_response = self.patch(account_url, body=parameter, headers=headers)
+                if patch_response.status in [200, 204]:
+                    result = {'ret': True, 'msg': "Succeed to create new user. Account id is '%s'." % member['Id']}
+                    return result
+            if account_url == '':
+                return {'ret': False, 'msg': "Accounts is full."}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get bmc's user accounts. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+
+
 
 
 # TBU
 if __name__ == "__main__":
     #read_config('config.ini')
-    lenovo_redfish = LenovoRedfishClient('10.245.39.251', 'renxulei', 'PASSW0RD12q')
+    lenovo_redfish = LenovoRedfishClient('10.245.39.153', 'renxulei', 'PASSW0RD12q')
     lenovo_redfish.login()
     #result = lenovo_redfish.get_cpu_inventory()
     #result = lenovo_redfish.get_all_bios_attributes('pending')
@@ -1237,9 +1363,9 @@ if __name__ == "__main__":
     #result = lenovo_redfish.set_system_power_state('On')
     #result = lenovo_redfish.get_system_reset_types()
     #result = lenovo_redfish.get_bios_attribute_available_value('OperatingModes_ChooseOperatingMode')
-    result = lenovo_redfish.set_bios_attribute('OperatingModes_ChooseOperatingMode', 'MaximumPerformance')
-    #result = lenovo_redfish.get_bmc_ntp()
-    #result = lenovo_redfish.get_bmc_ntp()
+    #result = lenovo_redfish.set_bios_attribute('OperatingModes_ChooseOperatingMode', 'MaximumPerformance')
+    #result = lenovo_redfish.lenovo_get_bmc_users()
+    result = lenovo_redfish.lenovo_create_bmc_user('abcd','PASSW0RD=0',['Supervisor'])
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
 
