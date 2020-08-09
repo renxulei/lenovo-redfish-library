@@ -10,7 +10,8 @@ import json
 import traceback 
 from redfish.rest.v1 import HttpClient
 from os.path import dirname, basename, isfile
-from utils import propertyFilter
+#from utils import propertyFilter
+from utils import *
 
 modules = glob.glob(os.path.dirname(os.path.abspath(__file__)) + os.sep + "*.py")
 module_collection = [ basename(f)[:-3] for f in modules if isfile(f) \
@@ -161,7 +162,7 @@ class LenovoRedfishClient(HttpClient):
     # Once enabling this, logout will not clear the session info.
     # When you want to run several functions continuously, 
     # you can enable this, this will save the time to setup connection. 
-    def set_long_connection(self, is_enable=True):
+    def __set_long_connection(self, is_enable=True):
         """enable/disable long connection"""
         self.__long_connection = is_enable
 
@@ -1254,7 +1255,7 @@ class LenovoRedfishClient(HttpClient):
                 # Set user privilege
                 # for TSM, only accept 'Supervisor', 'Administrator', 'Operator' and 'ReadOnly'
                 rolename = ""
-                if "Supervisor" in list_authority:
+                if "Supervisor" in list_authority or "Administrator" in list_authority:
                     rolename = "Administrator"
                 elif "Operator" in list_authority:
                     rolename = "Operator"
@@ -1276,7 +1277,7 @@ class LenovoRedfishClient(HttpClient):
                 else:
                     LOGGER.error(str(post_response))
                     return {'ret': False, 'msg': "Failed to create new user '%s'. Error code is %s. Error message is %s. " % \
-                            (username, post_response.status, post_response.text)}          
+                            (username, post_response.status, post_response.text)}
             
             # for XCC
             result = self.get_collection('/redfish/v1/AccountService/Accounts')
@@ -1286,7 +1287,7 @@ class LenovoRedfishClient(HttpClient):
             account_url = ''
             for member in result['entries']:
                 if member['UserName'] == username:
-                    return {'ret': False, 'msg': "User '%s' existed." % username}
+                    return {'ret': False, 'msg': "Failed to create new user. User '%s' existed." % username}
                 if member['UserName'] != '':
                     continue
                 
@@ -1316,6 +1317,11 @@ class LenovoRedfishClient(HttpClient):
                 if patch_response.status in [200, 204]:
                     result = {'ret': True, 'msg': "Succeed to create new user. Account id is '%s'." % member['Id']}
                     return result
+                else:
+                    LOGGER.error(str(patch_response))
+                    result = {'ret': False, 'msg': "Failed to create new user '%s'. Error code is %s. Error message is %s. " % \
+                             (username, patch_response.status, patch_response.text)}
+                    return result
             if account_url == '':
                 return {'ret': False, 'msg': "Accounts is full."}
         except Exception as e:
@@ -1324,14 +1330,64 @@ class LenovoRedfishClient(HttpClient):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
+    def lenovo_delete_bmc_user(self, username):
+        """delete one bmc user account
+        :params username: bmc user name deleted
+        :type username: string
+        :returns: returns result of deleting bmc user account.
+        """
+        result = {}
+        try:
+            bmc_type = self.__check_bmc_type()
+            result = self.get_collection('/redfish/v1/AccountService/Accounts')
+            if result['ret'] == False:
+                return result
 
+            account_url = ''
+            for member in result['entries']:
+                if member["UserName"] == username:
+                    account_url = member["@odata.id"]
+                    if "@odata.etag" in member:
+                        etag = member['@odata.etag']
+                    else:
+                        etag = ""
+
+                    response = {}
+                    if bmc_type == 'TSM':  # for TSM (SR635/655)
+                        headers = {"If-Match": "*" }
+                        response = self.delete(account_url, headers=headers)
+                    else: # for XCC
+                        headers = {"If-Match": etag}
+                        parameter = {
+                            "Enabled": False,
+                            "UserName": ""
+                        }
+                        response = self.patch(account_url, body=parameter, headers=headers)
+                                            
+                    if response.status in [200, 204]:
+                        result = {'ret': True, 'msg': "Account '%s' was deleted successfully." % username}
+                        return result
+                    else:
+                        LOGGER.error(str(response))
+                        result = {'ret': False, 'msg': "Failed to delete user '%s'. Error code is %s. Error message is %s. " % \
+                                 (username, response.status, response.text)}
+                        return result
+            if account_url == '':
+                result = {'ret': False, 'msg': "The user '%s' specified does not exist." % username}
+                return result
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to delete bmc's user. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            result = {'ret': False, 'msg': msg}
+            return result
 
 
 
 # TBU
 if __name__ == "__main__":
     #read_config('config.ini')
-    lenovo_redfish = LenovoRedfishClient('10.245.39.153', 'renxulei', 'PASSW0RD12q')
+    lenovo_redfish = LenovoRedfishClient('10.245.39.251', 'renxulei', 'PASSW0RD12q')
     lenovo_redfish.login()
     #result = lenovo_redfish.get_cpu_inventory()
     #result = lenovo_redfish.get_all_bios_attributes('pending')
@@ -1365,9 +1421,21 @@ if __name__ == "__main__":
     #result = lenovo_redfish.get_bios_attribute_available_value('OperatingModes_ChooseOperatingMode')
     #result = lenovo_redfish.set_bios_attribute('OperatingModes_ChooseOperatingMode', 'MaximumPerformance')
     #result = lenovo_redfish.lenovo_get_bmc_users()
-    result = lenovo_redfish.lenovo_create_bmc_user('abcd','PASSW0RD=0',['Supervisor'])
+    #result = lenovo_redfish.lenovo_create_bmc_user('abcd','PASSW0RD=0',['Supervisor'])
+    #result = lenovo_redfish.lenovo_delete_bmc_user('abcd')
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
+    #result = lenovo_redfish.get_bmc_ntp()
+    #result = lenovo_redfish.get_bmc_ntp()
+    #result = lenovo_redfish.get_bmc_ntp()
+    #result = lenovo_redfish.get_bmc_ntp()
+    #result = lenovo_redfish.get_bmc_ntp()
+    #result = lenovo_redfish.get_bmc_ntp()
+    #result = lenovo_redfish.get_bmc_ntp()
+    #result = lenovo_redfish.get_bmc_ntp()
+
+
+
 
     lenovo_redfish.logout()
 
