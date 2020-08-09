@@ -31,22 +31,8 @@ def redfish_logger(file_name, log_format, log_level=logging.ERROR):
     logger.setLevel(log_level)
     return logger
 
-#Config logger used by Lenovo Redfish Client
-LOGGERFILE = "LenovoRedfishClient.log"
-LOGGERFORMAT = "%(asctime)s - %(name)s - %(lineno)d - %(levelname)s - %(message)s"
-LOGGER = redfish_logger(LOGGERFILE, LOGGERFORMAT, logging.DEBUG)
-#LOGGER = logging.getLogger(__name__)
-
-
-""" example:
-    data_chassis = {...}
-    properties = ['Model', 'SerialNumber', 'Manufacturer', 'IndicatorLED', 'ChassisType',
-                  'AssetTag', 'ProductName', 'Status/State', 'Status/Health']
-    filtered_chassis = propertyFilter(data_chassis, properties)
-"""
-
 common_property_excluded = ["@odata.context", "@odata.id", "@odata.type", \
-                         "@odata.etag", "Links", "Actions", "RelatedItem"]
+                         "@odata.etag", "Description", "Actions", "RelatedItem"]
 
 def propertyFilter(data, properties_excluded=common_property_excluded, strings_excluded=[]):
     if isinstance(data, dict):

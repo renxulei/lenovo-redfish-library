@@ -1,73 +1,21 @@
 import os
-import glob
-import sys
 import warnings
-import importlib
 import redfish
 import configparser
 import logging
 import json
 import traceback 
 from redfish.rest.v1 import HttpClient
-from os.path import dirname, basename, isfile
-#from utils import propertyFilter
 from utils import *
-
-modules = glob.glob(os.path.dirname(os.path.abspath(__file__)) + os.sep + "*.py")
-module_collection = [ basename(f)[:-3] for f in modules if isfile(f) \
-                      and not f.endswith('__init__.py') 
-                      and not f.endswith('lenovo_utils.py') \
-                      and not f.endswith('lenovo_redfish_client.py') \
-                      and not f.endswith('utils.py') \
-                      and not f.endswith('manage_inventory.py')]
-
-for index in module_collection:
-    exec("from %s import %s" % (index, index)) in locals()
+from utils import redfish_logger
 
 warnings.filterwarnings('ignore')
-
-def redfish_logger(file_name, log_format, log_level=logging.ERROR):
-    formatter = logging.Formatter(log_format)
-    fh = logging.FileHandler(file_name)
-    fh.setFormatter(formatter)
-    logger = logging.getLogger(__name__)
-    logger.addHandler(fh)
-    logger.setLevel(log_level)
-    return logger
 
 #Config logger used by Lenovo Redfish Client
 LOGGERFILE = "LenovoRedfishClient.log"
 LOGGERFORMAT = "%(asctime)s - %(name)s - %(lineno)d - %(levelname)s - %(message)s"
 LOGGER = redfish_logger(LOGGERFILE, LOGGERFORMAT, logging.DEBUG)
 #LOGGER = logging.getLogger(__name__)
-
-
-def read_config(config_file):
-    """Read configuration file infomation    
-    :config_file: Configuration file
-    :type config_file: string 
-    """
-    
-    cfg = configparser.ConfigParser()
-    try:
-        cur_dir = os.path.dirname(os.path.abspath(__file__))
-        if os.sep not in config_file:
-            config_file = cur_dir + os.sep + config_file
-
-        config_ini_info = {}
-        cfg.read(config_file)
-        connect_cfg_list = cfg.items(section='ConnectCfg')
-        for item in connect_cfg_list:
-            config_ini_info[item[0]] = item[1]
-        fileserver_cfg_list = cfg.items(section='FileServerCfg')
-        for item in fileserver_cfg_list:
-            config_ini_info[item[0]] = item[1]
-        result = {'ret': True, 'entries': config_ini_info}
-    except Exception as e:
-        result = {'ret': False, 'msg': "Failed to parse configuration file %s, Error is %s ." % (config_file, repr(e))}
-        LOGGER.error('Error: in parsing file %s, problem line:\"%s\" found exception\n %s' %(filename, line, str(e)))
-    return result
-
 
 class LenovoRedfishClient(HttpClient):
     """A client for accessing lenovo Redfish service"""
@@ -724,7 +672,7 @@ class LenovoRedfishClient(HttpClient):
             for member in result['entries']:
                 nic_info = {}
                 for key in member.keys():
-                    if key not in self.common_property_excluded and 'Redfish.Deprecated' not in key:
+                    if key not in common_property_excluded and 'Redfish.Deprecated' not in key:
                         nic_info[key] = member[key]
                 list_nic_info.append(nic_info)
             return {'ret': True, 'entries': list_nic_info}
@@ -875,7 +823,7 @@ class LenovoRedfishClient(HttpClient):
             result_system = self.get_url(system_url)
             if result_system['ret'] == True:
                 system_info = propertyFilter(result_system['entries'], \
-                    self.common_property_excluded + ['Processors', 'Memory', \
+                    common_property_excluded + ['Processors', 'Memory', \
                     'SecureBoot', 'Storage', 'PCIeDevices', 'PCIeFunctions', \
                     'LogServices', 'PCIeDevices@odata.count', 'PCIeFunctions@odata.count'])
             else:
@@ -934,19 +882,19 @@ class LenovoRedfishClient(HttpClient):
             result_nic = self.get_collection(chassis_url + '/NetworkAdapters')
             
             if result_nic['ret'] == True:
-                list_nic_info = propertyFilter(result_nic['entries'], self.common_property_excluded, ['@Redfish'])
+                list_nic_info = propertyFilter(result_nic['entries'], common_property_excluded, ['@Redfish'])
                 for member in list_nic_info:
                     if 'NetworkDeviceFunctions' in member:
                         result_nic_func = self.get_collection(member['NetworkDeviceFunctions']['@odata.id'])
                         if result_nic_func['ret'] == False:
                             return result_nic_func
-                        data_filtered = propertyFilter(result_nic_func['entries'], self.common_property_excluded)
+                        data_filtered = propertyFilter(result_nic_func['entries'], common_property_excluded)
                         member['NetworkDeviceFunctions'] = data_filtered
                     if 'NetworkPorts' in member:
                         result_nic_ports = self.get_collection(member['NetworkPorts']['@odata.id'])
                         if result_nic_ports['ret'] == False:
                             return result_nic_ports
-                        data_filtered = propertyFilter(result_nic_ports['entries'], self.common_property_excluded)
+                        data_filtered = propertyFilter(result_nic_ports['entries'], common_property_excluded)
                         member['NetworkPorts'] = data_filtered
                 return {'ret': True, 'entries': list_nic_info}
             else:
@@ -973,7 +921,7 @@ class LenovoRedfishClient(HttpClient):
             list_fan_info = []
             if 'Fans' in result['entries']:
                 list_fan_info = propertyFilter(result['entries']['Fans'], \
-                                               self.common_property_excluded + \
+                                               common_property_excluded + \
                                                ['Oem'])
             return {'ret': True, 'entries': list_fan_info}
         except Exception as e:
@@ -1374,6 +1322,7 @@ class LenovoRedfishClient(HttpClient):
                         return result
             if account_url == '':
                 result = {'ret': False, 'msg': "The user '%s' specified does not exist." % username}
+                LOGGER.error(result['msg'])
                 return result
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
@@ -1389,7 +1338,7 @@ if __name__ == "__main__":
     #read_config('config.ini')
     lenovo_redfish = LenovoRedfishClient('10.245.39.251', 'renxulei', 'PASSW0RD12q')
     lenovo_redfish.login()
-    #result = lenovo_redfish.get_cpu_inventory()
+    result = lenovo_redfish.get_cpu_inventory()
     #result = lenovo_redfish.get_all_bios_attributes('pending')
     #result = lenovo_redfish.get_all_bios_attributes('current')
     #result = lenovo_redfish.get_bios_attribute('Processors_L1')
@@ -1422,7 +1371,7 @@ if __name__ == "__main__":
     #result = lenovo_redfish.set_bios_attribute('OperatingModes_ChooseOperatingMode', 'MaximumPerformance')
     #result = lenovo_redfish.lenovo_get_bmc_users()
     #result = lenovo_redfish.lenovo_create_bmc_user('abcd','PASSW0RD=0',['Supervisor'])
-    #result = lenovo_redfish.lenovo_delete_bmc_user('abcd')
+    result = lenovo_redfish.lenovo_delete_bmc_user('abcd')
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
