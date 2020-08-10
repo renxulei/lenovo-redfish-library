@@ -338,7 +338,7 @@ class LenovoRedfishClient(HttpClient):
             #filename = os.getcwd() + os.sep + bios_registry_json_url.split("/")[-1]
             #with open(filename, 'w') as f:
             #    json.dump(result['entries'], f, indent=2)
-            #return {'ret': True, 'msg': "Download Bios AttributeRegistry file %s" % (bios_registry_json_url.split("/")[-1])}    
+            #return {'ret': True, 'msg': "Download Bios AttributeRegistry file %s" % (bios_registry_json_url.split("/")[-1])}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
             msg = "Failed to get bios attribute metadata. Error message: %s" % repr(e)
@@ -1132,8 +1132,8 @@ class LenovoRedfishClient(HttpClient):
                 attribute = {"Attributes": parameter}
             headers = {"If-Match": "*", "Content-Type": "application/json"}
             patch_response = self.patch(pending_url, headers = headers, body=attribute)
-            if patch_response.status in [200,204]:
-                result = {'ret': True, 'msg': 'Succeed to set %s.'% attribute_name }
+            if patch_response.status in [200, 204]:
+                result = {'ret': True, 'msg': "Succeed to set '%s' to '%s'."% (attribute_name, attribute_value)}
             else:
                 LOGGER.error(str(patch_response))
                 result = {'ret': False, 'msg': "Failed to set '%s'. Error code is %s. Error message is %s. " % \
@@ -1144,6 +1144,132 @@ class LenovoRedfishClient(HttpClient):
             msg = "Failed to set bios attribute. Error message: %s" % repr(e)
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
+
+    def set_bios_boot_order(self, bootorder):
+        """Set bios attribute.
+        :params bootorder: Specify the bios boot order list, like: ["ubuntu", "CD/DVD Rom", "Hard Disk", "USB Storage"]
+        :type bootorder: list
+        :returns: returns the result to set bios attribute result
+        """
+        result = {}
+        try:
+            system_url = self.find_system_resource()
+            bmc_type = 'XCC'
+            if 'Self' in system_url:
+                bmc_type = 'TSM'
+            
+            result = self.get_url(system_url)
+            if result['ret'] == False: 
+                return result
+
+            if bmc_type == 'XCC':
+                # for current products
+                oem = result['entries']['Oem']
+                if 'Lenovo' in oem and 'BootSettings' in oem['Lenovo']:
+                    boot_settings_url = oem['Lenovo']['BootSettings']['@odata.id']
+                    result = self.get_collection(boot_settings_url)
+                    if result['ret'] == False:
+                        return result
+
+                    boot_order_member = result['entries'][0]
+                    boot_order_url = boot_order_member['@odata.id']
+                    boot_order_supported = boot_order_member['BootOrderSupported']
+                    for boot in bootorder:
+                        if boot not in boot_order_supported:
+                            result = {'ret': False, 'msg': "Invalid boot option %s. You can specify one or more boot option from list: %s." %(boot, boot_order_supported)}
+                            return result
+
+                    # Set the boot order next via patch request
+                    body = {"BootOrderNext": bootorder}
+                    patch_response = self.patch(boot_order_url, body=body)
+                    
+                    if patch_response.status in [200]:
+                        boot_order_next = patch_response.dict["BootOrderNext"]
+                        result = {'ret': True, 'msg': "Succeed to set boot order '%s'. New boot order will take effect on next startup."%(boot_order_next)}
+                        return result
+                    else:
+                        LOGGER.error(str(patch_response))
+                        result = {'ret': False, 'msg': "Failed to set '%s'. Error code is %s. Error message is %s. " % \
+                                (attribute_name, patch_response.status, patch_response.text)}
+
+                # for next generation, TBU.
+                if 'BootOrder' in result['entries']['Boot']:
+                    pass
+            
+            if bmc_type == 'TSM':
+                result = self.get_all_bios_attributes()
+                if result['ret'] == False:
+                    return result
+
+                attribute_name = ''
+                attribute_value = ''
+                if 'Q00999_Boot_Option_Priorities' in result['entries']:
+                    attribute_name = 'Q00999_Boot_Option_Priorities'
+                    attribute_value = result['entries'][attribute_name]
+                elif 'Q00999 Boot Option Priorities' in result['entries']:
+                    attribute_name = 'Q00999 Boot Option Priorities'
+                    attribute_value = result['entries'][attribute_name]
+                else:
+                    result = {'ret': False, 'msg': "Failed to find boot options in bios attributes."}
+                    return result
+
+                # Get supported boot order list
+                boot_order_supported = list()
+                org_boot_order_struct_list = attribute_value.split(';')
+                for boot_order_struct in org_boot_order_struct_list:
+                    boot_order_name = boot_order_struct.split(',')[0]
+                    boot_order_supported.append(boot_order_name)
+
+                # Set payload body
+                body = {}
+                new_boot_order_struct_list = list()
+                for boot in bootorder:
+                    # If input bootorder is not supported, prompt error message
+                    if boot not in boot_order_supported:
+                        result = {'ret': False, 'msg': "Invalid boot option %s. You can specify one or more boot option from list: %s." %(boot, boot_order_supported)}
+                        return result
+                    # Add enabled bootorder list
+                    for boot_order_struct in org_boot_order_struct_list:
+                        boot_order_name = boot_order_struct.split(',')[0]
+                        if boot == boot_order_name:
+                            newstruct = boot_order_struct.replace('false', 'true')
+                            if newstruct not in new_boot_order_struct_list:
+                                new_boot_order_struct_list.append(newstruct)
+                # Add disabled bootorder list
+                for boot_order_struct in org_boot_order_struct_list:
+                    boot_order_name = boot_order_struct.split(',')[0]
+                    if boot_order_name not in bootorder:
+                        newstruct = boot_order_struct.replace('true', 'false')
+                        if newstruct not in new_boot_order_struct_list:
+                            new_boot_order_struct_list.append(newstruct)
+                new_boot_order_struct_string = ''
+                for item in new_boot_order_struct_list:
+                    new_boot_order_struct_string = new_boot_order_struct_string + item + ';'
+                result = self.set_bios_attribute(attribute_name, new_boot_order_struct_string)
+                if result['ret'] == False:
+                    return result
+                else:
+                    result = {'ret': True, 'msg': "Succeed to set boot order. New boot order will take effect on next startup."}
+                    return result
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to set boot order. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def set_bios_bootmode(self, bootmode):
+        """Set bios bootmode.
+        :params bootmode: new value of Bios attribute
+        :type bootmode: string.
+        :returns: returns the result to set bios bootmode result
+        """
+        result = self.get_bios_bootmode()
+        if result['ret'] == False:
+            return result
+
+        attribute_name = list(result['entries'].keys())[0]
+        result = self.set_bios_attribute(attribute_name, bootmode)
+        return result
 
     def lenovo_get_bmc_users(self):
         """Get bmc user accounts
@@ -1184,13 +1310,13 @@ class LenovoRedfishClient(HttpClient):
         else:
             return 'XCC'
 
-    def lenovo_create_bmc_user(self, username, password, list_authority):
+    def lenovo_create_bmc_user(self, username, password, authority):
         """Create new bmc user account
         :params username: new  username
         :type username: string
         :params password: new password
         :type password: string
-        :params authority: user authority list, you can specify multiple authority.
+        :params authority: user authority list, like ['Supervisor'] or ['UserAccountManagement', 'RemoteConsoleAccess']
         :type authority: list
         :returns: returns result of creating bmc user account.
         """
@@ -1203,14 +1329,14 @@ class LenovoRedfishClient(HttpClient):
                 # Set user privilege
                 # for TSM, only accept 'Supervisor', 'Administrator', 'Operator' and 'ReadOnly'
                 rolename = ""
-                if "Supervisor" in list_authority or "Administrator" in list_authority:
+                if "Supervisor" in authority or "Administrator" in authority:
                     rolename = "Administrator"
-                elif "Operator" in list_authority:
+                elif "Operator" in authority:
                     rolename = "Operator"
-                elif "ReadOnly" in list_authority:
+                elif "ReadOnly" in authority:
                     rolename = "ReadOnly"
                 else:
-                    rolename = list_authority[0]
+                    rolename = authority[0]
                 #create new user account
                 headers = None
                 parameter = {
@@ -1244,7 +1370,7 @@ class LenovoRedfishClient(HttpClient):
                 role_url = member["Links"]["Role"]["@odata.id"]
                 #result_role = self.get_url(roleuri)
                 parameter = {
-                    "OemPrivileges": list_authority
+                    "OemPrivileges": authority
                 }
                 patch_response = self.patch(role_url, body=parameter)
                 if patch_response.status not in [200, 204]:
@@ -1331,17 +1457,72 @@ class LenovoRedfishClient(HttpClient):
             result = {'ret': False, 'msg': msg}
             return result
 
-
+    def set_bmc_networkprotocol(self, service, enabled=None, port=None):
+        """enable or disable one bmc network service or change the service port numbers.      
+        :params service: network service of bmc. support:["HTTPS","SSDP","SSH","SNMP","IPMI","VirtualMedia"]
+        :type service: string
+        :params enabled: Disable(0) or enable(1) bmc service
+        :type enabled: int
+        :params port: network service's port
+        :type port: int
+        :returns: returns the result to set bmc's network service
+        """
+        result = {}
+        try:
+            manager_url = self.find_manager_resource()
+            result = self.get_url(manager_url + '/NetworkProtocol')
+            if result['ret'] == False:
+                return result
+            
+            if service not in result['entries']:
+                result = {'ret': False, 'msg': "Please check service name '%s', which does not exist." % service}
+                return result
+            
+            if "@odata.etag" in result['entries']:
+                etag = result['entries']['@odata.etag']
+            else:
+                etag = ""
+            headers = {"If-Match": etag}
+            
+            if service in ["IPMI", "SSDP", "DHCPv6", "NTP"]:
+                if enabled == None:
+                    return {'ret': False, 'msg': "Please specify enable parameter."}
+                body = {service:{"ProtocolEnabled":bool(int(enabled))}}
+            elif service in ["SSH", "SNMP"]:
+                if enabled == None or port == None: 
+                    return {'ret': False, 'msg': "Please specify enable parameter."}
+                body = {service:{"ProtocolEnabled":bool(int(enabled)),"Port":port}}
+            elif service in ["HTTPS", "VirtualMedia"]:
+                if port == None:
+                    return {'ret': False, 'msg': "Please specify port parameter."}
+                body = {service:{"Port":port}}
+            else:
+                result = {'ret': False, 'msg': "Please check if service name is in the %s." % result['entries'].keys()}
+                return result
+            response = self.patch(manager_url + '/NetworkProtocol', body=body, headers=headers)
+            if response.status in [200,204]:
+                result = {'ret': True, 'msg': "Succeed to set bmc's network service %s." % service}
+                return result
+            else:
+                LOGGER.error(str(response))
+                result = {'ret': False, 'msg': "Failed to set bmc's network service %s. Error code is %s. Error message is %s. " % \
+                         (service, response.status, response.text)}
+                return result
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to set bmc's network service. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
 # TBU
 if __name__ == "__main__":
     #read_config('config.ini')
-    lenovo_redfish = LenovoRedfishClient('10.245.39.251', 'renxulei', 'PASSW0RD12q')
+    lenovo_redfish = LenovoRedfishClient('10.245.39.153', 'renxulei', 'PASSW0RD12q')
     lenovo_redfish.login()
-    result = lenovo_redfish.get_cpu_inventory()
+    #result = lenovo_redfish.get_cpu_inventory()
     #result = lenovo_redfish.get_all_bios_attributes('pending')
     #result = lenovo_redfish.get_all_bios_attributes('current')
-    #result = lenovo_redfish.get_bios_attribute('Processors_L1')
+    #result = lenovo_redfish.get_bios_attribute('BootModes_SystemBootMode')
     #result = lenovo_redfish.get_bios_attribute_metadata()
     #result = lenovo_redfish.get_bios_bootmode()
     #result = lenovo_redfish.get_bmc_inventory()
@@ -1367,15 +1548,19 @@ if __name__ == "__main__":
     #result = lenovo_redfish.get_system_power_state()
     #result = lenovo_redfish.set_system_power_state('On')
     #result = lenovo_redfish.get_system_reset_types()
-    #result = lenovo_redfish.get_bios_attribute_available_value('OperatingModes_ChooseOperatingMode')
+    #result = lenovo_redfish.get_bios_attribute_available_value('BootModes_SystemBootMode')
+    #result = lenovo_redfish.get_bios_attribute_available_value('Q00001_Boot_Mode')
+    #result = lenovo_redfish.get_bios_attribute_available_value('abcd')
     #result = lenovo_redfish.set_bios_attribute('OperatingModes_ChooseOperatingMode', 'MaximumPerformance')
     #result = lenovo_redfish.lenovo_get_bmc_users()
     #result = lenovo_redfish.lenovo_create_bmc_user('abcd','PASSW0RD=0',['Supervisor'])
-    result = lenovo_redfish.lenovo_delete_bmc_user('abcd')
-    #result = lenovo_redfish.get_bmc_ntp()
-    #result = lenovo_redfish.get_bmc_ntp()
-    #result = lenovo_redfish.get_bmc_ntp()
-    #result = lenovo_redfish.get_bmc_ntp()
+    #result = lenovo_redfish.lenovo_delete_bmc_user('abcd')
+    #result = lenovo_redfish.set_bmc_networkprotocol('DHCPv6', 0)
+    #result = lenovo_redfish.get_bmc_networkprotocol()
+    #result = lenovo_redfish.set_bios_bootmode('UEFIMode')
+    #bootorder = ["ubuntu", "CD/DVD Rom", "Hard Disk", "USB Storage"]
+    #bootorder = ['Hard Drive', 'CD/DVD Drive', 'ubuntu', 'Windows Boot Manager', 'UEFI: PXE IP4 Mellanox Network Adapter']
+    #result = lenovo_redfish.set_bios_boot_order(bootorder)
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
@@ -1395,4 +1580,4 @@ if __name__ == "__main__":
         if 'entries' in result:
             print(json.dumps(result['entries'], sort_keys=True, indent=2))
     else:
-        print(result['msg'])
+        print(result['msg']) 
