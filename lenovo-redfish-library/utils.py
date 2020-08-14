@@ -1,7 +1,7 @@
 ###
 # Copyright Notice:
 #
-# Copyright 2018 Lenovo Corporation
+# Copyright 2020 Lenovo Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -31,8 +31,14 @@ def redfish_logger(file_name, log_format, log_level=logging.ERROR):
     logger.setLevel(log_level)
     return logger
 
+#Config logger used by Lenovo Redfish Client
+LOGGERFILE = "LenovoRedfishClient.log"
+LOGGERFORMAT = "%(asctime)s - %(name)s - %(lineno)d - %(levelname)s - %(message)s"
+LOGGER = redfish_logger(LOGGERFILE, LOGGERFORMAT, logging.DEBUG)
+
 common_property_excluded = ["@odata.context", "@odata.id", "@odata.type", \
-                         "@odata.etag", "Description", "Actions", "RelatedItem"]
+                            "@odata.etag", "Description", "Actions", \
+                            "RelatedItem", "RelatedItem@odata.count"]
 
 def propertyFilter(data, properties_excluded=common_property_excluded, strings_excluded=[]):
     if isinstance(data, dict):
@@ -101,7 +107,10 @@ def read_config(config_file):
     :config_file: Configuration file
     :type config_file: string 
     """
-    
+
+    if (not os.path.exists(config_file)):
+        result = {'ret': False, 'msg': "File '%s' does not exist." % config_file}
+        return result
     cfg = configparser.ConfigParser()
     try:
         cur_dir = os.path.dirname(os.path.abspath(__file__))
@@ -119,5 +128,5 @@ def read_config(config_file):
         result = {'ret': True, 'entries': config_ini_info}
     except Exception as e:
         result = {'ret': False, 'msg': "Failed to parse configuration file %s, Error is %s ." % (config_file, repr(e))}
-        LOGGER.error('Error: in parsing file %s, problem line:\"%s\" found exception\n %s' %(filename, line, str(e)))
+        LOGGER.error("Error: in parsing file %s, found exception: %s" %(config_file, str(e)))
     return result

@@ -29,7 +29,7 @@ import traceback
 import requests
 import time
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
-from requests.auth import HTTPBasicAuth
+#from requests.auth import HTTPBasicAuth
 from redfish.rest.v1 import HttpClient
 from utils import *
 
@@ -182,15 +182,25 @@ class LenovoRedfishClient(HttpClient):
 
     def login(self, username=None, password=None, auth=None):
         # TBU. need to consider how to check if session exist or still alive, session maybe time out. 
-        self.__user = username if username else self.__user
-        self.__password = password if password else self.__password
-        self.__auth = auth if auth else self.__auth
-        
+        changed = False
+        if username != None and self.__user != username:
+            changed = True
+            self.__user = username
+        if password != None and self.__password != password:
+            changed = True
+            self.__password = password
+        if auth != None and self.__auth != auth:
+            changed = True
+            self.__auth = auth
+
         # re-create connection once user/password/auth specified
-        if username or password or auth:
+        if changed:
+            self.set_session_key(None)
+            self.set_authorization_key(None)
             return super(LenovoRedfishClient, self).login(username=self.__user, password=self.__password, auth=self.__auth)
 
-        if self.get_session_key() != None or self.get_authorization_key() != None:
+        if (self.get_session_key() != None and self.__auth == 'session') or \
+           (self.get_authorization_key() != None and self.__auth == 'basic'):
             pass
         else:
             return super(LenovoRedfishClient, self).login(username=self.__user, password=self.__password, auth=self.__auth)
@@ -1610,6 +1620,29 @@ class LenovoRedfishClient(HttpClient):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
+    def get_firmware_inventory(self):
+        """Get firmware inventory
+        :returns: returns List of firmwares when succeeded or error message when failed
+        """
+        try:
+            result = self.__get_url('/redfish/v1/UpdateService')
+            if result['ret'] == False:
+                return result
+
+            fw_url = result['entries']['FirmwareInventory']['@odata.id']
+            result = self.__get_collection(fw_url)
+            if result['ret'] == False:
+                return result
+
+            list_fw_inventory = propertyFilter(result['entries'])
+            result = {'ret': True, 'entries': list_fw_inventory}
+            return result
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get firmware inventory. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
     def __task_monitor(self, task_uri, wait_time=10):
         """Monitor task status
         :params task_uri: task uri for tracking the update status.
@@ -1786,24 +1819,216 @@ class LenovoRedfishClient(HttpClient):
 
                     # Send a post command through requests to update the firmware
                     # Ignore SSL Certificates
-                    requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-                    # Set BMC access credential
-                    headers = {}
-                    headers['X-Auth-Token'] = self.get_session_key()
+                    requests.packages.urllib3.disable_warnings(InsecureRequestWarning)  
                     print("Start to upload the image, may take about 3~10 minutes...")
                     firmware_update_url = multipart_uri
-                    response = requests.post(multipart_uri, headers=headers, files=files, verify=False)
+                    headers = {}
+                    if self.__auth == 'session':
+                        headers["X-Auth-Token"] = self.get_session_key()
+                        response = requests.post(multipart_uri, headers=headers, files=files, verify=False)
+                    else:
+                        headers["Authorization"] = self.get_authorization_key()
+                        response = requests.post(multipart_uri, headers=headers, files=files, verify=False)
                     response_code = response.status_code
+                    
                     f_parameters.close()
                     f_oem_parameters.close()
+                    # Delete temporary files if they exist
+                    if os.path.exists(parameters_file):
+                        os.remove(parameters_file)
+                    if os.path.exists(oem_parameters_file):
+                        os.remove(oem_parameters_file)
 
                     if response_code in [200, 202, 204]:
                         # For BMC update, BMC will restart automatically, the session connection will be disconnected, user have to wait BMC to restart.
                         # For UEFI update, the script can monitor the update task via BMC. 
                         if target.upper() == "BMC":
                             task_uri = response.headers['Location']
-                            print("bmc update task is: %s." % task_uri)
-                            result = {'ret': True, 'msg': 'Succeed to update bmc, wait about 5 minutes for bmc to restart.'}
+                            print("BMC update task is: %s." % task_uri)
+                            result = {'ret': True, 'msg': 'Succeed to update bmc, wait about 5 minutes for bmc to restart.', 'task': task_uri}
+                            return result
+                        else:
+                            task_uri = response.headers['Location']
+                            result = self.__task_monitor(task_uri)
+                            self.delete(task_uri, None)
+                            return result
+                    else:
+                        result = {'ret': False, 'msg': "Failed to update '%s'. Error code is %s. Error message is %s. " % \
+                                  (image, response_code, response.text)}
+                        LOGGER.error(result['msg'])
+                        return result
+                else:
+                    result = {'ret': False, 'msg': "This product only supports HTTPPUSH protocol."}
+                    return result
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to update the firmware. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def lenovo_export_ffdc(self, image, target=None, fsprotocol='HTTPPUSH', fsip=None, fsdir=None, fsusername=None, fspassword=None):
+        """Update firmware.
+        :params targets: target. For XCC: only 'BMC-Backup'. For TSM: only 'BMC' or 'UEFI'.
+        :type targets: string
+        :params image: image's file path or url
+        :type image: string
+        :params fsprotocol: transfer protocol, like HTTPPUSH, SFTP
+        :type fsprotocol: string
+        :params fsip: file server ip, like sftp or tftp server ip
+        :type fsip: string
+        :params fsusername: username to access sftp file server 
+        :type fsusername: string
+        :params fspassword: password to access sftp file server
+        :type fspassword: string
+        :params fsdir: full path of dir on file server(sftp/tftp) or local machine(httppush), under which image is saved 
+        :type fsdir: string
+        :returns: returns the result of firmware updating
+        """
+        result = {}
+        try:
+            manager_url = self.__find_manager_resource()
+            bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
+            
+            result = self.__get_url('/redfish/v1/UpdateService')
+            if result['ret'] == False:
+                return result
+
+            if bmc_type == 'XCC':
+                if target != None and target.lower() == "bmc-backup":
+                    target = "/redfish/v1/UpdateService/FirmwareInventory/BMC-Backup"
+                else:
+                    target = None
+                # Update firmware via local payload
+                if fsprotocol.lower() == "httppush":
+                    firmware_update_url =  self.get_base_url() + result['entries']["HttpPushUri"]
+                    if fsdir == None or fsdir == '':
+                        file_path = os.getcwd()+ os.sep + image
+                    else:
+                        if os.path.isdir(fsdir):
+                            file_path = fsdir + os.sep + image
+                        else:
+                            result = {'ret': False, 'msg': "The path '%s' doesn't exist, please check if 'fsdir' is correct." % fsdir}
+                            return result
+                    if (not os.path.exists(file_path)):
+                        result = {'ret': False, 'msg': "File '%s' does not exist." % file_path}
+                        return result
+
+                    headers = {"Content-Type":"application/octet-stream"}
+                    headers['X-Auth-Token'] = self.get_session_key()
+                    files = {'data-binary':open(file_path,'rb')}
+                    if self.__cafile is not None and self.__cafile != "":
+                        response = requests.post(firmware_update_url, headers=headers, files=files, verify=self.__cafile)
+                    else:
+                        # Ignore SSL Certificates
+                        requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+                        response = requests.post(firmware_update_url, headers=headers, files=files, verify=False)
+                    response_code = response.status_code
+                else: # sftp/tftp
+                    firmware_update_url = result['entries']['Actions']['#UpdateService.SimpleUpdate']['target']
+                    # Update firmware via file server
+                    # Define an anonymous function formatting parameter
+                    dir = (lambda fsdir: "/" + fsdir.strip("/") if fsdir else fsdir)
+                    fsdir = dir(fsdir)
+
+                    if fsprotocol.lower() not in ["sftp", "tftp"]:
+                        result = {'ret': False, 'msg': "Protocol only supports HTTPPUSH, SFTP and TFTP."}
+                        return result
+
+                    # Build an dictionary to store the request body
+                    body = {"ImageURI": fsip + fsdir + "/" + image}
+                    if fsusername and fsusername != '':
+                        body['Username'] = fsusername
+                    if fspassword and fspassword != '':
+                        body['Password'] = fspassword
+                    if target and target != '':
+                        body["Targets"] = [target]
+                    if fsprotocol and fsprotocol != '':
+                        body["TransferProtocol"] = fsprotocol.upper()
+                    response = self.post(firmware_update_url, body=body)
+                    response_code = response.status
+
+                if response_code in [200, 204]:
+                    result = {'ret': True, 'msg': "Succeed to update the firmware."}
+                    return result
+                elif response_code == 202:
+                    if fsprotocol.lower() == "httppush":
+                        task_uri = response.json()['@odata.id']
+                    else:
+                        task_uri = response.dict['@odata.id']
+                    result = self.__task_monitor(task_uri)
+                    # Delete task
+                    self.delete(task_uri, None)
+                    return result
+                else:
+                    result = {'ret': False, 'msg': "Failed to update '%s'. Error code is %s. Error message is %s. " % \
+                              (image, response_code, response.text)}
+                    LOGGER.error(result['msg'])
+                    return result
+
+            if bmc_type == 'TSM':
+                if "MultipartHttpPushUri" in result['entries'] and fsprotocol.upper() == "HTTPPUSH":
+                    if target == None or target.upper() not in ['BMC', 'UEFI']:
+                        result = {'ret': False, 'msg': "You must specify the target: BMC or UEFI."}
+                        return result
+                    elif target.upper() == "BMC":
+                        oem_parameters = {"FlashType": "HPMFwUpdate", "UploadSelector": "Default"}
+                    else: # UEFI
+                        oem_parameters = {"FlashType": "UEFIUpdate", "UploadSelector": "Default"}
+
+                    if fsdir == None or fsdir == '':
+                        fsdir = os.getcwd()
+                    file_path = fsdir + os.sep + image
+                    if (not os.path.exists(file_path)):
+                        result = {'ret': False, 'msg': "File '%s' does not exist." % file_path}
+                        return result
+
+                    multipart_uri = self.get_base_url() + result['entries']["MultipartHttpPushUri"]
+                    parameters = {"Targets": [manager_url]}
+                    
+                    # Create temporary files to write to the OEM value
+                    parameters_file = os.getcwd() + os.sep + "parameters.json"
+                    oem_parameters_file = os.getcwd() + os.sep + "oem_parameters.json"
+                    with open(parameters_file, 'w') as f:
+                        f.write(json.dumps(parameters))
+                    with open(oem_parameters_file, 'w') as f:
+                        f.write(json.dumps(oem_parameters))
+
+                    f_parameters = open(parameters_file, 'rb')
+                    f_oem_parameters = open(oem_parameters_file, 'rb')
+                    # Specify the parameters required to update the firmware
+                    files = {'UpdateParameters': ("parameters.json", f_parameters, 'application/json'),
+                             'OemParameters': ("oem_parameters.json", f_oem_parameters, 'application/json'),
+                             'UpdateFile': (image, open(file_path, 'rb'), 'multipart/form-data')}
+
+                    # Send a post command through requests to update the firmware
+                    # Ignore SSL Certificates
+                    requests.packages.urllib3.disable_warnings(InsecureRequestWarning)  
+                    print("Start to upload the image, may take about 3~10 minutes...")
+                    firmware_update_url = multipart_uri
+                    headers = {}
+                    if self.__auth == 'session':
+                        headers["X-Auth-Token"] = self.get_session_key()
+                        response = requests.post(multipart_uri, headers=headers, files=files, verify=False)
+                    else:
+                        headers["Authorization"] = self.get_authorization_key()
+                        response = requests.post(multipart_uri, headers=headers, files=files, verify=False)
+                    response_code = response.status_code
+                    
+                    f_parameters.close()
+                    f_oem_parameters.close()
+                    # Delete temporary files if they exist
+                    if os.path.exists(parameters_file):
+                        os.remove(parameters_file)
+                    if os.path.exists(oem_parameters_file):
+                        os.remove(oem_parameters_file)
+
+                    if response_code in [200, 202, 204]:
+                        # For BMC update, BMC will restart automatically, the session connection will be disconnected, user have to wait BMC to restart.
+                        # For UEFI update, the script can monitor the update task via BMC. 
+                        if target.upper() == "BMC":
+                            task_uri = response.headers['Location']
+                            print("BMC update task is: %s." % task_uri)
+                            result = {'ret': True, 'msg': 'Succeed to update bmc, wait about 5 minutes for bmc to restart.', 'task': task_uri}
                             return result
                         else:
                             task_uri = response.headers['Location']
@@ -1830,12 +2055,11 @@ class LenovoRedfishClient(HttpClient):
 
 
 
-
-
 # TBU
 if __name__ == "__main__":
     # initiate LenovoRedfishClient object, specify ip/user/password/authentication.
-    lenovo_redfish = LenovoRedfishClient('10.245.39.153', 'renxulei', 'PASSW0RD12q')
+    #lenovo_redfish = LenovoRedfishClient('10.245.39.153', 'renxulei', 'PASSW0RD12q', auth='basic')
+    lenovo_redfish = LenovoRedfishClient('10.245.39.251', 'renxulei', 'PASSW0RD12q', auth='session')
 
     # setup connection with bmc.
     lenovo_redfish.login()
@@ -1844,7 +2068,7 @@ if __name__ == "__main__":
     #result = lenovo_redfish.get_cpu_inventory()
     #result = lenovo_redfish.get_all_bios_attributes('pending')
     #result = lenovo_redfish.get_all_bios_attributes('current')
-    result = lenovo_redfish.get_bios_attribute('BootModes_SystemBootMode')
+    #result = lenovo_redfish.get_bios_attribute('BootModes_SystemBootMode')
     #result = lenovo_redfish.get_bios_attribute_metadata()
     #result = lenovo_redfish.get_bios_bootmode()
     #result = lenovo_redfish.get_bmc_inventory()
@@ -1889,15 +2113,18 @@ if __name__ == "__main__":
     # XCC:
     #fsdir = "D:\\Workdata20190427\\work\\Task\\46-Redfish\\FW-Package\\20C\\Intel"
     #image = "lnvgy_fw_uefi_ive160g-2.70_anyos_32-64.uxz"
+    #image = "lnvgy_fw_xcc_cdi358g-4.80_anyos_noarch.uxz"
     #result = lenovo_redfish.lenovo_update_firmware(image=image, fsdir=fsdir)
     #result = lenovo_redfish.lenovo_update_firmware(image=image, fsdir='/home/sftp_root/upload', fsprotocol='SFTP', fsip='10.245.100.159', fsusername='mysftp', fspassword='wlylenovo')    
 
     # AMD
-    image = "lnvgy_fw_uefi_cfe117k-5.10_anyos_32-64.rom"
-    fsdir = "D:\\Workdata20190427\\work\\Task\\46-Redfish\\FW-Package\\20C\\AMD"
-    result = lenovo_redfish.lenovo_update_firmware(image=image, target='UEFI', fsdir=fsdir)
+    #image_uefi = "lnvgy_fw_uefi_cfe117k-5.10_anyos_32-64.rom"
+    #image_bmc = "lnvgy_fw_bmc_ambt11n-2.53_anyos_arm.hpm"
+    #fsdir = "D:\\Workdata20190427\\work\\Task\\46-Redfish\\FW-Package\\20C\\AMD"
+    #result = lenovo_redfish.lenovo_update_firmware(image=image_uefi, target='UEFI', fsdir=fsdir)
+    #result = lenovo_redfish.lenovo_update_firmware(image=image_bmc, target='BMC', fsdir=fsdir)
 
-    #result = lenovo_redfish.get_bmc_ntp()
+    result = lenovo_redfish.get_firmware_inventory()
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
