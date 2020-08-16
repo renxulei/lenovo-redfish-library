@@ -181,7 +181,6 @@ class LenovoRedfishClient(HttpClient):
         return self.__suburl_chassis
 
     def login(self, username=None, password=None, auth=None):
-        # TBU. need to consider how to check if session exist or still alive, session maybe time out. 
         changed = False
         if username != None and self.__user != username:
             changed = True
@@ -1866,200 +1865,333 @@ class LenovoRedfishClient(HttpClient):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
-    def lenovo_export_ffdc(self, image, target=None, fsprotocol='HTTPPUSH', fsip=None, fsdir=None, fsusername=None, fspassword=None):
+    def lenovo_export_ffdc(self, data_type=None, fsprotocol=None, fsip=None, fsport=None, fsdir=None, fsusername=None, fspassword=None):
         """Update firmware.
-        :params targets: target. For XCC: only 'BMC-Backup'. For TSM: only 'BMC' or 'UEFI'.
-        :type targets: string
-        :params image: image's file path or url
-        :type image: string
-        :params fsprotocol: transfer protocol, like HTTPPUSH, SFTP
+        :params data_type: only for XCC. Data collection type: ProcessorDump, ServiceDataFile or BootPOSTDump.
+        :type data_type: string
+        :params fsprotocol: transfer protocol. For XCC: SFTP/TFTP/None(local save). Fox TSM: HTTP only.
         :type fsprotocol: string
         :params fsip: file server ip, like sftp or tftp server ip
         :type fsip: string
+        :params fsport: file server port, only for HTTP. Default is '8080'
+        :type fsport: Number
         :params fsusername: username to access sftp file server 
         :type fsusername: string
         :params fspassword: password to access sftp file server
         :type fspassword: string
-        :params fsdir: full path of dir on file server(sftp/tftp) or local machine(httppush), under which image is saved 
+        :params fsdir: full path of dir on file server(sftp/tftp) under which ffdc file will be saved. \
+                       for http file server, fsdir should be the path to HTTP service root. 
+                       example: http://10.103.62.175:8080/upload, the fsdir should be '/upload'
         :type fsdir: string
-        :returns: returns the result of firmware updating
+        :returns: returns the result of exporting ffdc
+        """
+        result = {}
+        # Check parameter
+        if fsprotocol and (fsip is None or fsip == '' or fsprotocol.upper() not in ['SFTP', 'TFTP', 'HTTP']):
+            result = {'ret': False, 'msg': "please check if protocol and file server info are correct."}
+            return result
+        try:
+            manager_url = self.__find_manager_resource()
+            bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
+            
+            result = self.__get_url(manager_url)
+            if result['ret'] == False:
+                return result
+
+            dict_bmc = result['entries']
+            export_uri = ""
+            local_download = False
+            if bmc_type == 'XCC':
+                servicedata_uri = None
+                if 'Oem' in dict_bmc and 'Lenovo' in dict_bmc['Oem'] and 'ServiceData' in dict_bmc['Oem']['Lenovo']:
+                    # Get servicedata uri via manager uri response resource
+                    servicedata_uri = dict_bmc['Oem']['Lenovo']['ServiceData']['@odata.id']
+                else:
+                    result = {'ret': False, 'msg': "Failed to find servicedata uri."}
+                    return result
+                # Get servicedata resource
+                result = self.__get_url(servicedata_uri)
+                if result['ret'] == False:
+                    return result
+
+                # Get export ffdc data uri via servicedaata uri response resource
+                ffdc_data_uri = result['entries']['Actions']['#LenovoServiceData.ExportFFDCData']['target']
+
+                # Build post request body and Get the user specified parameter
+                body = {}
+                body['InitializationNeeded'] = True
+                if data_type == None or data_type == '':
+                    data_type = "ProcessorDump"
+                body['DataCollectionType'] = data_type
+
+                # Check the transport protocol, only support sftp and tftp protocols
+                if fsprotocol:
+                    export_uri = fsprotocol.lower() + "://" + fsip + ":" + fsdir + "/"
+                    body['ExportURI'] = export_uri
+
+                    # Get the user specified sftp username and password when the protocol is sftp
+                    if fsprotocol.upper() == "SFTP":
+                        if not fsusername or not fspassword:
+                            msg = "you must specify username and password for accessing sftp server."
+                            result = {"ret": False, "msg": msg}
+                            return result
+                        else:
+                            body['Username'] = fsusername
+                            body['Password'] = fspassword
+                else:
+                    local_download = True
+            if bmc_type == 'TSM':
+                if 'Actions' in dict_bmc and 'Oem' in dict_bmc['Actions'] and \
+                   '#Manager.DownloadServiceData' in dict_bmc['Actions']['Oem']:
+                    if fsprotocol.upper() != "HTTP":
+                        msg = "Target Server only supports HTTP protocol, please use HTTP file server to download server data."
+                        result = {"ret": False, "msg": msg}
+                        return result
+                    body = {}
+                    body['serverIP'] = fsip
+                    if fsport == None or fsport == '':
+                        fsport = "8080"
+                    body['serverPort'] = fsport
+                    body['folderPath'] = fsdir
+                    export_uri = fsprotocol.lower() + "://" + fsip + ":" + str(fsport) + fsdir + "/"
+                    ffdc_data_uri = result['entries']['Actions']['Oem']['#Manager.DownloadServiceData']['target']
+
+            time_start=time.time()
+            response = self.post(ffdc_data_uri, body=body)
+            if response.status not in [202]:
+                result = {'ret': False, 'msg': "Failed to export ffdc. Error code is %s. Error message is %s. " % \
+                          (response_code, response.text)}
+                LOGGER.error(result['msg'])
+                return result
+            task_uri = response.dict['@odata.id']
+            # Check collect result via returned task uri
+            print("Start downloading ffdc files and may take 3~10 minutes...")
+            while True:
+                response = self.get(task_uri, None)
+                if response.status not in [200, 202]:
+                    result = {'ret': False, 'msg': "Failed to get task: '%s'. Error code is %s. Error message is %s. " % \
+                              (task_uri, response.status, response.text)}
+                    LOGGER.error(result['msg'])
+                    return result
+
+                time_end = time.time()
+                task_state = response.dict['TaskState']
+                print("task state: %s" % task_state)
+                if task_state == "Completed":
+                    # If the user does not specify export uri, the ffdc data file will be downloaded to the local
+                    if local_download == True:
+                        # Download FFDC data from download uri when the task completed
+                        download_uri = response.dict['Oem']['Lenovo']['FFDCForDownloading']['Path']
+                        requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+                        headers = {}
+                        headers['Content-Type'] = "application/json"
+                        # We must use session connection to get ffdc file.
+                        if self.__auth == 'basic':
+                            self.login(auth='session')
+                        headers["X-Auth-Token"] = self.get_session_key()
+
+                        download_uri = "https://" + self.__ip + download_uri
+                        response_download = requests.get(download_uri, headers=headers, verify=False)
+                        
+                        if response_download.status_code not in [200, 202]:
+                            result = {'ret': False, 'msg': "Failed to get ffdc data: '%s'. Error code is %s. Error message is %s. " % \
+                                      (download_uri, response_download.status_code, response_download.text)}
+                            LOGGER.error(result['msg'])
+                            return result
+                            
+                        ffdc_file_name = download_uri.split('/')[-1]
+                        ffdc_fullpath = os.getcwd() + os.sep + ffdc_file_name
+                        with open(ffdc_fullpath, 'wb') as f:
+                            f.write(response_download.content)
+
+                        time_end = time.time()
+                        print('time cost: %.2f' %(time_end-time_start)+'s')
+                        self.delete(task_uri, None)
+                        result = {'ret': True, 'msg':  "Succeed to export The FFDC data into file: '%s'." % ffdc_fullpath, 'entries': response.dict}
+                        return result
+                    else:
+                        time_end = time.time()
+                        print('time cost: %.2f' %(time_end-time_start)+'s')
+                        result = {'ret': True, 'msg':  "The FFDC data is saved in %s " % export_uri}
+                        return result
+                elif task_state in ["Exception", "Killed"]:
+                    self.delete(task_uri, None)
+                    result = {"ret": False, "msg": "Failed to download FFDC data, task state is '%s'." % task_state, 'entries': response.dict}
+                    return result
+                else: # task not in end state
+                    # Wait max 10 minutes to avoid endless loop.
+                    time_now = time.time()
+                    if time_now - time_start > 600:
+                        result = {'ret': False, 'msg':  "It is over 10 minutes to export FFDC data.", 'entries': response.dict}
+                        return result
+                    time.sleep(10)
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to export ffdc. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+
+    def lenovo_mount_virtual_media(self, image, fsprotocol, fsip, fsdir, fsport=None, inserted=1, writeprotocol=1):
+        """Mount virtual media into system
+        :params image: image's file name
+        :type image: string
+        :params fsprotocol: transfer protocol, XCC: [HTTP, NFS]. TSM: [NFS]
+        :type fsprotocol: string
+        :params fsip: file server's ip, like nfs or http file server
+        :type fsip: string
+        :params fsusername: username to access file server 
+        :type fsusername: string
+        :params fspassword: password to access file server
+        :type fspassword: string
+        :params fsdir: path to image file on file server 
+        :type fsdir: string
+        :params inserted: 1 or 0. 1: True, 0: False
+        :type inserted: int
+        :params writeProtected: 1 or 0. 1: True, 0: False
+        :type writeProtected: int
+        :returns: returns the result of mounting virtual media
         """
         result = {}
         try:
             manager_url = self.__find_manager_resource()
             bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
             
-            result = self.__get_url('/redfish/v1/UpdateService')
+            result = self.__get_collection(manager_url + '/VirtualMedia')
             if result['ret'] == False:
                 return result
 
             if bmc_type == 'XCC':
-                if target != None and target.lower() == "bmc-backup":
-                    target = "/redfish/v1/UpdateService/FirmwareInventory/BMC-Backup"
+                protocol_scope = ['NFS', 'HTTP']
+                if fsprotocol.upper() not in protocol_scope:
+                    result = {'ret': False, 'msg': "Please specify correct protocol. available protocol is '%s'." % protocol_scope}
+                    return result
+                
+                target_vm = None
+                for member in result['entries']:
+                    if member['Id'].startswith("EXT") and (member['ImageName'] == None or member['ImageName'] == ''):
+                        target_vm = member
+                        break
+                    continue
+                
+                if target_vm == None:
+                    result = {'ret': False, 'msg': "There are no avaliable virtual media."}
+                    return result
+
+                # Via patch request mount virtual media
+                if fsport == None:
+                    fsport = ''
                 else:
-                    target = None
-                # Update firmware via local payload
-                if fsprotocol.lower() == "httppush":
-                    firmware_update_url =  self.get_base_url() + result['entries']["HttpPushUri"]
-                    if fsdir == None or fsdir == '':
-                        file_path = os.getcwd()+ os.sep + image
-                    else:
-                        if os.path.isdir(fsdir):
-                            file_path = fsdir + os.sep + image
-                        else:
-                            result = {'ret': False, 'msg': "The path '%s' doesn't exist, please check if 'fsdir' is correct." % fsdir}
-                            return result
-                    if (not os.path.exists(file_path)):
-                        result = {'ret': False, 'msg': "File '%s' does not exist." % file_path}
-                        return result
-
-                    headers = {"Content-Type":"application/octet-stream"}
-                    headers['X-Auth-Token'] = self.get_session_key()
-                    files = {'data-binary':open(file_path,'rb')}
-                    if self.__cafile is not None and self.__cafile != "":
-                        response = requests.post(firmware_update_url, headers=headers, files=files, verify=self.__cafile)
-                    else:
-                        # Ignore SSL Certificates
-                        requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-                        response = requests.post(firmware_update_url, headers=headers, files=files, verify=False)
-                    response_code = response.status_code
-                else: # sftp/tftp
-                    firmware_update_url = result['entries']['Actions']['#UpdateService.SimpleUpdate']['target']
-                    # Update firmware via file server
-                    # Define an anonymous function formatting parameter
-                    dir = (lambda fsdir: "/" + fsdir.strip("/") if fsdir else fsdir)
-                    fsdir = dir(fsdir)
-
-                    if fsprotocol.lower() not in ["sftp", "tftp"]:
-                        result = {'ret': False, 'msg': "Protocol only supports HTTPPUSH, SFTP and TFTP."}
-                        return result
-
-                    # Build an dictionary to store the request body
-                    body = {"ImageURI": fsip + fsdir + "/" + image}
-                    if fsusername and fsusername != '':
-                        body['Username'] = fsusername
-                    if fspassword and fspassword != '':
-                        body['Password'] = fspassword
-                    if target and target != '':
-                        body["Targets"] = [target]
-                    if fsprotocol and fsprotocol != '':
-                        body["TransferProtocol"] = fsprotocol.upper()
-                    response = self.post(firmware_update_url, body=body)
-                    response_code = response.status
-
-                if response_code in [200, 204]:
-                    result = {'ret': True, 'msg': "Succeed to update the firmware."}
-                    return result
-                elif response_code == 202:
-                    if fsprotocol.lower() == "httppush":
-                        task_uri = response.json()['@odata.id']
-                    else:
-                        task_uri = response.dict['@odata.id']
-                    result = self.__task_monitor(task_uri)
-                    # Delete task
-                    self.delete(task_uri, None)
-                    return result
+                    fsport = ':' + fsport
+                fsdir = "/" + fsdir.strip("/")
+                protocol = fsprotocol.lower()
+                
+                if protocol == 'samba':
+                    protocol = 'smb'
+                if protocol == 'nfs':
+                    image_uri = fsip + ":" + fsport + fsdir + "/" + image
                 else:
-                    result = {'ret': False, 'msg': "Failed to update '%s'. Error code is %s. Error message is %s. " % \
-                              (image, response_code, response.text)}
-                    LOGGER.error(result['msg'])
-                    return result
+                    image_uri = protocol + "://" + fsip + ":" + fsport + fsdir + "/" + image
+                body = {"Image": image_uri, "WriteProtected": bool(writeprotocol),
+                        "Inserted": bool(inserted)}
+                response = self.patch(target_vm["@odata.id"], body=body)
 
             if bmc_type == 'TSM':
-                if "MultipartHttpPushUri" in result['entries'] and fsprotocol.upper() == "HTTPPUSH":
-                    if target == None or target.upper() not in ['BMC', 'UEFI']:
-                        result = {'ret': False, 'msg': "You must specify the target: BMC or UEFI."}
-                        return result
-                    elif target.upper() == "BMC":
-                        oem_parameters = {"FlashType": "HPMFwUpdate", "UploadSelector": "Default"}
-                    else: # UEFI
-                        oem_parameters = {"FlashType": "UEFIUpdate", "UploadSelector": "Default"}
-
-                    if fsdir == None or fsdir == '':
-                        fsdir = os.getcwd()
-                    file_path = fsdir + os.sep + image
-                    if (not os.path.exists(file_path)):
-                        result = {'ret': False, 'msg': "File '%s' does not exist." % file_path}
-                        return result
-
-                    multipart_uri = self.get_base_url() + result['entries']["MultipartHttpPushUri"]
-                    parameters = {"Targets": [manager_url]}
-                    
-                    # Create temporary files to write to the OEM value
-                    parameters_file = os.getcwd() + os.sep + "parameters.json"
-                    oem_parameters_file = os.getcwd() + os.sep + "oem_parameters.json"
-                    with open(parameters_file, 'w') as f:
-                        f.write(json.dumps(parameters))
-                    with open(oem_parameters_file, 'w') as f:
-                        f.write(json.dumps(oem_parameters))
-
-                    f_parameters = open(parameters_file, 'rb')
-                    f_oem_parameters = open(oem_parameters_file, 'rb')
-                    # Specify the parameters required to update the firmware
-                    files = {'UpdateParameters': ("parameters.json", f_parameters, 'application/json'),
-                             'OemParameters': ("oem_parameters.json", f_oem_parameters, 'application/json'),
-                             'UpdateFile': (image, open(file_path, 'rb'), 'multipart/form-data')}
-
-                    # Send a post command through requests to update the firmware
-                    # Ignore SSL Certificates
-                    requests.packages.urllib3.disable_warnings(InsecureRequestWarning)  
-                    print("Start to upload the image, may take about 3~10 minutes...")
-                    firmware_update_url = multipart_uri
-                    headers = {}
-                    if self.__auth == 'session':
-                        headers["X-Auth-Token"] = self.get_session_key()
-                        response = requests.post(multipart_uri, headers=headers, files=files, verify=False)
-                    else:
-                        headers["Authorization"] = self.get_authorization_key()
-                        response = requests.post(multipart_uri, headers=headers, files=files, verify=False)
-                    response_code = response.status_code
-                    
-                    f_parameters.close()
-                    f_oem_parameters.close()
-                    # Delete temporary files if they exist
-                    if os.path.exists(parameters_file):
-                        os.remove(parameters_file)
-                    if os.path.exists(oem_parameters_file):
-                        os.remove(oem_parameters_file)
-
-                    if response_code in [200, 202, 204]:
-                        # For BMC update, BMC will restart automatically, the session connection will be disconnected, user have to wait BMC to restart.
-                        # For UEFI update, the script can monitor the update task via BMC. 
-                        if target.upper() == "BMC":
-                            task_uri = response.headers['Location']
-                            print("BMC update task is: %s." % task_uri)
-                            result = {'ret': True, 'msg': 'Succeed to update bmc, wait about 5 minutes for bmc to restart.', 'task': task_uri}
-                            return result
-                        else:
-                            task_uri = response.headers['Location']
-                            result = self.__task_monitor(task_uri)
-                            self.delete(task_uri, None)
-                            return result
-                    else:
-                        result = {'ret': False, 'msg': "Failed to update '%s'. Error code is %s. Error message is %s. " % \
-                                  (image, response_code, response.text)}
-                        LOGGER.error(result['msg'])
-                        return result
-                else:
-                    result = {'ret': False, 'msg': "This product only supports HTTPPUSH protocol."}
+                protocol_scope = ['NFS']
+                if fsprotocol.upper() not in protocol_scope:
+                    result = {'ret': False, 'msg': "Please specify correct protocol. available protocol is '%s'." % protocol_scope}
                     return result
+                if not image.endswith(".iso") and not image.endswith(".nrg"):
+                    result = {'ret': False, 'msg': "Only support CD/DVD media file type: (*.iso), (*.nrg)."}
+                    return result
+                target_vm = None
+                for member in result['entries']:
+                    if member['ImageName'] == None or member['ImageName'] == '':
+                        target_vm = member
+                        break
+                    continue
+                
+                if target_vm == None:
+                    result = {'ret': False, 'msg': "There are no avaliable virtual media."}
+                    return result
+
+                # Via post action to mount virtual media
+                fsdir = "/" + fsdir.strip("/")
+                image_uri = fsprotocol.lower() + "://" + fsip + fsdir + "/" + image
+                insert_media_url = target_vm["Actions"]["#VirtualMedia.InsertMedia"]["target"]
+                body = {"Image": image_uri, "TransferProtocolType": fsprotocol.upper()}
+                response = self.post(insert_media_url, body=body)
+                
+            if response.status in [200, 202, 204]:
+                result = {'ret': True, 'msg': "Succeed to mount the image: %s." % image}
+                return result
+            else:
+                result = {'ret': False, 'msg': "Failed to mount the image '%s'. Error code is %s. Error message is %s. " % \
+                          (image_uri, response.status, response.text)}
+                LOGGER.error(result['msg'])
+                return result
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            msg = "Failed to update the firmware. Error message: %s" % repr(e)
+            msg = "Failed to mount virtual media. Error message: %s" % repr(e)
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
+    def lenovo_umount_virtual_media(self, image):
+        """Unmount virtual media from system.
+        :params image: image name. virtual media with image mame will be ejected
+        :type image: string
+        :returns: returns the result of unmounting virtual media
+        """
+        result = {}
+        try:
+            manager_url = self.__find_manager_resource()
+            bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
+            
+            result = self.__get_collection(manager_url + '/VirtualMedia')
+            if result['ret'] == False:
+                return result
 
+            target_vm = None
+            for member in result['entries']:
+                if member['ImageName'] == image:
+                    target_vm = member
+                    break
+                continue
+            if target_vm == None:
+                result = {'ret': False, 'msg': "There is no virtual media with name: '%s'." % image}
+                return result
 
+            if bmc_type == 'XCC':
+                body = {"Image": None}
+                response = self.patch(target_vm["@odata.id"], body=body)
+                if response.status in [200,204]:
+                    result = {'ret': True, 'msg': "Succeed to unmount image '%s'." % image}
+                    return result
 
-
+            if bmc_type == 'TSM':
+                eject_media_url = target_vm["Actions"]["#VirtualMedia.EjectMedia"]["target"]
+                body = {}
+                response = self.post(eject_media_url, body=body)
+                if response.status == 204:
+                    result = {'ret': True, 'msg': "Succeed to unmount image '%s'." % image}
+                    return result
+                else:
+                    result = {'ret': False, 'msg': "Failed to unmount the image '%s'. Error code is %s. Error message is %s. " % \
+                              (image, response.status, response.text)}
+                    LOGGER.error(result['msg'])
+                    return result
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to unmount virtual media. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
 
 # TBU
 if __name__ == "__main__":
     # initiate LenovoRedfishClient object, specify ip/user/password/authentication.
     #lenovo_redfish = LenovoRedfishClient('10.245.39.153', 'renxulei', 'PASSW0RD12q', auth='basic')
-    lenovo_redfish = LenovoRedfishClient('10.245.39.251', 'renxulei', 'PASSW0RD12q', auth='session')
+    lenovo_redfish = LenovoRedfishClient('10.245.39.251', 'renxulei', 'PASSW0RD12q', auth='basic')
 
     # setup connection with bmc.
     lenovo_redfish.login()
@@ -2109,6 +2241,8 @@ if __name__ == "__main__":
     #bootorder = ['Hard Drive', 'CD/DVD Drive', 'ubuntu', 'Windows Boot Manager', 'UEFI: PXE IP4 Mellanox Network Adapter']
     #result = lenovo_redfish.set_bios_boot_order(bootorder)
     #result = lenovo_redfish.get_bios_boot_order()
+    #result = lenovo_redfish.get_firmware_inventory()
+
 
     # XCC:
     #fsdir = "D:\\Workdata20190427\\work\\Task\\46-Redfish\\FW-Package\\20C\\Intel"
@@ -2116,6 +2250,12 @@ if __name__ == "__main__":
     #image = "lnvgy_fw_xcc_cdi358g-4.80_anyos_noarch.uxz"
     #result = lenovo_redfish.lenovo_update_firmware(image=image, fsdir=fsdir)
     #result = lenovo_redfish.lenovo_update_firmware(image=image, fsdir='/home/sftp_root/upload', fsprotocol='SFTP', fsip='10.245.100.159', fsusername='mysftp', fspassword='wlylenovo')    
+    #result = lenovo_redfish.lenovo_export_ffdc()
+    #result = lenovo_redfish.lenovo_export_ffdc(fsdir='/home/sftp_root/upload', fsprotocol='SFTP', fsip='10.245.100.159', fsusername='mysftp', fspassword='wlylenovo')
+    #result = lenovo_redfish.lenovo_mount_virtual_media(image='bios.iso', fsdir='/home/nfs', fsprotocol='NFS', fsip='10.245.100.159')
+    #result = lenovo_redfish.lenovo_mount_virtual_media(image='efiboot.img', fsdir='/upload', fsprotocol='HTTP', fsip='10.103.62.175', fsport='8080')
+    #result = lenovo_redfish.lenovo_umount_virtual_media('bios.iso')
+
 
     # AMD
     #image_uefi = "lnvgy_fw_uefi_cfe117k-5.10_anyos_32-64.rom"
@@ -2123,11 +2263,13 @@ if __name__ == "__main__":
     #fsdir = "D:\\Workdata20190427\\work\\Task\\46-Redfish\\FW-Package\\20C\\AMD"
     #result = lenovo_redfish.lenovo_update_firmware(image=image_uefi, target='UEFI', fsdir=fsdir)
     #result = lenovo_redfish.lenovo_update_firmware(image=image_bmc, target='BMC', fsdir=fsdir)
+    #result = lenovo_redfish.lenovo_export_ffdc(fsdir='/upload', fsprotocol='HTTP', fsip='10.103.62.175')
+    #result = lenovo_redfish.lenovo_mount_virtual_media(image='bios.iso', fsdir='/home/nfs', fsprotocol='NFS', fsip='10.245.100.159')
+    #result = lenovo_redfish.lenovo_umount_virtual_media('bios.iso')
 
-    result = lenovo_redfish.get_firmware_inventory()
-    #result = lenovo_redfish.get_bmc_ntp()
-    #result = lenovo_redfish.get_bmc_ntp()
-    #result = lenovo_redfish.get_bmc_ntp()
+
+
+
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
