@@ -2342,7 +2342,6 @@ class LenovoRedfishClient(HttpClient):
                     return result
 
                 # load configuration file
-                print(backup_file)
                 f_back_file = open(backup_file,'r')
                 try:
                     list_data = json.load(f_back_file)
@@ -2393,9 +2392,6 @@ class LenovoRedfishClient(HttpClient):
 
                 restore_url = result['entries']['Actions']['Oem']['#Manager.Restore']['target']                
                 print("Start restoring bmc configuration, may take 1~5 minutes ...")
-                print(body)
-                print(restore_url)
-                print(export_uri)
                 response = self.post(restore_url, body=body)
                 if response.status not in [202]:
                     result = {'ret': False, 'msg': "Failed to restore bmc configuration. Url: %s. Error code is %s. Error message is %s. " % \
@@ -2407,9 +2403,8 @@ class LenovoRedfishClient(HttpClient):
                 result = self.__task_monitor(task_uri)
                 self.delete(task_uri, None)
                 if result['ret'] == True:
-                    result['msg'] = "Succeed to restore bmc configuration."
+                    result['msg'] = "Succeed to restore bmc configuration. BMC will restart to reload the configuration, may take 1~5 minutes ..."
                 return result
-                #result = {'ret': True, 'msg': "BMC will restart to restore configuration, may take 1~5 minutes ..."}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
             msg = "Failed to restore bmc configuration. Error message: %s" % repr(e)
@@ -2421,8 +2416,8 @@ class LenovoRedfishClient(HttpClient):
 # TBU
 if __name__ == "__main__":
     # initiate LenovoRedfishClient object, specify ip/user/password/authentication.
-    #lenovo_redfish = LenovoRedfishClient('10.245.39.153', 'renxulei', 'PASSW0RD12q', auth='session')
-    lenovo_redfish = LenovoRedfishClient('10.245.39.251', 'renxulei', 'PASSW0RD12q', auth='session')
+    lenovo_redfish = LenovoRedfishClient('10.245.39.153', 'renxulei', 'PASSW0RD12q', auth='session')
+    #lenovo_redfish = LenovoRedfishClient('10.245.39.251', 'renxulei', 'PASSW0RD12q', auth='session')
 
     # setup connection with bmc.
     lenovo_redfish.login()
@@ -2488,7 +2483,7 @@ if __name__ == "__main__":
     #result = lenovo_redfish.lenovo_mount_virtual_media(image='efiboot.img', fsdir='/upload', fsprotocol='HTTP', fsip='10.103.62.175', fsport='8080')
     #result = lenovo_redfish.lenovo_umount_virtual_media('bios.iso')
     #result = lenovo_redfish.lenovo_bmc_config_backup(backup_password='Aa1234567')
-    result = lenovo_redfish.lenovo_bmc_config_restore(backup_password='Aa1234567', backup_file='.\\aaaaaaaa.json')
+    #result = lenovo_redfish.lenovo_bmc_config_restore(backup_password='Aa1234567', backup_file='.\\aaaaaaaa.json')
 
 
     # AMD
@@ -2500,8 +2495,8 @@ if __name__ == "__main__":
     #result = lenovo_redfish.lenovo_export_ffdc(fsdir='/upload', fsprotocol='HTTP', fsip='10.103.62.175')
     #result = lenovo_redfish.lenovo_mount_virtual_media(image='bios.iso', fsdir='/home/nfs', fsprotocol='NFS', fsip='10.245.100.159')
     #result = lenovo_redfish.lenovo_umount_virtual_media('bios.iso')
-    #result = lenovo_redfish.lenovo_bmc_config_backup(backup_password='Aa1234567', httpip='10.103.62.175', httpport='8080', httpdir='upload')
-    #result = lenovo_redfish.lenovo_bmc_config_restore(backup_password='Aa1234567', backup_file='bmc-config%20(23).bin', httpip='10.103.62.175', httpport='8080', httpdir='upload')
+    #result = lenovo_redfish.lenovo_bmc_config_backup(backup_password='Aa1234567', httpip='10.103.62.175', httpport='8080', httpdir='upload/renxulei')
+    result = lenovo_redfish.lenovo_bmc_config_restore(backup_password='Aa1234567', backup_file='bmc-config.bin', httpip='10.103.62.175', httpport='8080', httpdir='upload/renxulei')
 
 
 
