@@ -1652,7 +1652,6 @@ class LenovoRedfishClient(HttpClient):
         """
         END_TASK_STATE = ["Cancelled", "Completed", "Exception", "Killed", "Interrupted", "Suspended", "Done", "Failed when Flashing Image."]
         time_start=time.time()
-        print("Start to refresh the firmware, please wait about 3~10 minutes...")
         while True:
             response_task_uri = self.get(task_uri, None)
             if response_task_uri.status in [200, 202]:
@@ -1664,16 +1663,16 @@ class LenovoRedfishClient(HttpClient):
                 # Monitor task status until the task terminates
                 if task_state in END_TASK_STATE:
                     if task_state == "Completed":
-                        result = {'ret': True, 'msg': "Succeed to update the firmware.", 'entries': response_task_uri.dict}
+                        result = {'ret': True, 'msg': "Task completed successfully.", 'entries': response_task_uri.dict}
                     else:
-                        result = {'ret': False, 'msg': "Failed to update firmware.", 'entries': response_task_uri.dict}
+                        result = {'ret': False, 'msg': "Task completed abnormally.", 'entries': response_task_uri.dict}
                     return result
                 else:
                     time_now = time.time()
                     # wait for max 10 minutes to avoid endless loop.
                     wait_seconds = wait_time * 60
                     if time_now - time_start > wait_seconds:
-                        result = {'ret': False, 'msg':  "It is over %s minutes to update the firmware." % wait_time, 'entries': response_task_uri.dict}
+                        result = {'ret': False, 'msg':  "Task is not completed in %s minutes expected." % wait_time, 'entries': response_task_uri.dict}
                         return result
                     time.sleep(10)
             else:
@@ -1771,7 +1770,10 @@ class LenovoRedfishClient(HttpClient):
                         task_uri = response.json()['@odata.id']
                     else:
                         task_uri = response.dict['@odata.id']
+                    print("Start to refresh the firmware, please wait about 3~10 minutes...")
                     result = self.__task_monitor(task_uri)
+                    if result['ret'] == True:
+                        result['msg'] = "Succeed to update the firmware."
                     # Delete task
                     self.delete(task_uri, None)
                     return result
@@ -1848,7 +1850,10 @@ class LenovoRedfishClient(HttpClient):
                             return result
                         else:
                             task_uri = response.headers['Location']
+                            print("Start to refresh the firmware, please wait about 3~10 minutes...")
                             result = self.__task_monitor(task_uri)
+                            if result['ret'] == True:
+                                result['msg'] = "Succeed to update the firmware."
                             self.delete(task_uri, None)
                             return result
                     else:
@@ -2031,6 +2036,26 @@ class LenovoRedfishClient(HttpClient):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
+    def get_virtual_media(self):
+        """Get virtual media
+        :returns: returns List of virtual media.
+        """
+        result = {}
+        try:
+            manager_url = self.__find_manager_resource()
+            bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
+            
+            result = self.__get_collection(manager_url + '/VirtualMedia')
+            if result['ret'] == False:
+                return result
+
+            virtual_media_list = propertyFilter(result['entries'])
+            return {'ret': True, 'entries': virtual_media_list}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get virtual media. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def lenovo_mount_virtual_media(self, image, fsprotocol, fsip, fsdir, fsport=None, inserted=1, writeprotocol=1):
         """Mount virtual media into system
@@ -2186,12 +2211,218 @@ class LenovoRedfishClient(HttpClient):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
+    def lenovo_bmc_config_backup(self, backup_password, backup_file=None, httpip=None, httpport=None, httpdir=None):
+        """Backup bmc configuration
+        :params backup_password: backup password for encrypting configuration file
+        :type backup_password: string
+        :params backup_file: backup file of configuration, only for XCC. \
+            Default is 'bmc_config_backup.json' under current working directory
+        :type backup_file: string
+        :params httpip: http file server's ip, only for TSM
+        :type httpip: string
+        :params httpport: http file server's port, only for TSM
+        :type httpport: number
+        :params httpdir: folder on file server to save the backup file, only for TSM
+        :type httpdir: string
+        :returns: returns the result of backuping bmc configuration
+        """
+        result = {}
+        try:
+            if len(backup_password) < 9:
+                result = {'ret': False, 'msg': "Password is at least 9 characters"}
+                return result
+
+            manager_url = self.__find_manager_resource()
+            bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
+            
+            result = self.__get_url(manager_url)
+            if result['ret'] == False:
+                return result
+
+            if bmc_type == 'XCC':
+                if backup_file == None:
+                    backup_file = os.getcwd() + os.sep + 'bmc_config_backup.json'
+                config_url = result['entries']['Oem']['Lenovo']['Configuration']['@odata.id']
+                result = self.__get_url(config_url)
+                if result['ret'] == False:
+                    return result
+
+                # Backup configuration
+                backup_target_url = result['entries']['Actions']['#LenovoConfigurationService.BackupConfiguration']['target']
+                backup_body = {"Passphrase": backup_password}
+                response = self.post(backup_target_url, body=backup_body)
+                if response.status in [200]:
+                    #with open(filename, 'w') as f:
+                    #    json.dump(result['entries'], f, indent=2)
+                    f_back_file = open(backup_file,'w+')
+                    json.dump(response.dict["data"], f_back_file, separators=(',', ':'))
+                    f_back_file.close()
+                    size = os.path.getsize(backup_file)
+                    size = size/1024
+                    if(size <= 255):
+                        result = {'ret': True, 'msg': "Succeed to back up bmc configuration, backup file is: %s." % backup_file}
+                    else:
+                        os.remove(backup_file)
+                        result = {'ret': False,'msg': "Failed to back up bmc configuration, configuration data is over 255KB."}
+                    return result
+                else:
+                    result = {'ret': False, 'msg': "Failed to back up bmc configuration. Error code is %s. Error message is %s. " % \
+                              (response.status, response.text)}
+                    LOGGER.error(result['msg'])
+                    return result
+
+            if bmc_type == 'TSM':
+                if httpip is None or httpdir is None:
+                    msg = "This product only supports HTTP protocol, please specify httpip and httpdir."
+                    result = {"ret": False, "msg": error_message}
+                    return result
+                backup_target_url = result['entries']['Actions']['Oem']['#Manager.Backup']['target']
+                body = {}
+                body['BackupType'] = 'SNMP, KVM, NetworkAndServices, IPMI, NTP, Authentication, SYSLOG'
+                body['password'] = backup_password
+                body['serverIP'] = httpip
+                body['serverPort'] = int(httpport)
+                body['folderPath'] = httpdir.strip("/")
+                export_uri = 'http://' + httpip + ':' + str(httpport) + '/' + httpdir
+                
+                print("Start backing up bmc configuration, may take 1~5 minutes ...")
+                response = self.post(backup_target_url, body=body)
+                if response.status not in [202]:
+                    result = {'ret': False, 'msg': "Failed to back up bmc configuration. Url: %s. Error code is %s. Error message is %s. " % \
+                              (backup_target_url, response.status, response.text)}
+                    LOGGER.error(result['msg'])
+                    return result
+
+                task_uri = response.dict['@odata.id']
+                result = self.__task_monitor(task_uri)
+                self.delete(task_uri, None)
+                if result['ret'] == True:
+                    result['msg'] = "Succeed to back up bmc configuration, file is saved in '%s'." % export_uri
+                return result
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to back up bmc configuration. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def lenovo_bmc_config_restore(self, backup_password, backup_file=None, httpip=None, httpport=None, httpdir=None):
+        """Restore bmc configuration
+        :params backup_password: backup password for decrypting configuration file
+        :type backup_password: string
+        :params backup_file: backup file of configuration, only for XCC. \
+            Default is 'bmc_config_backup.json' under current working directory
+        :type backup_file: string
+        :params httpip: http file server's ip, only for TSM
+        :type httpip: string
+        :params httpport: http file server's port, only for TSM
+        :type httpport: number
+        :params httpdir: folder on file server, under which file restored is saved, only for TSM
+        :type httpdir: string
+        :returns: returns the result of restoring bmc configuration
+        """
+        result = {}
+        try:
+            if len(backup_password) < 9:
+                result = {'ret': False, 'msg': "Password is at least 9 characters"}
+                return result
+
+            manager_url = self.__find_manager_resource()
+            bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
+            
+            result = self.__get_url(manager_url)
+            if result['ret'] == False:
+                return result
+
+            if bmc_type == 'XCC':
+                if backup_file == None:
+                    backup_file = os.getcwd() + os.sep + 'bmc_config_backup.json'
+                config_url = result['entries']['Oem']['Lenovo']['Configuration']['@odata.id']
+                result = self.__get_url(config_url)
+                if result['ret'] == False:
+                    return result
+
+                # load configuration file
+                print(backup_file)
+                f_back_file = open(backup_file,'r')
+                try:
+                    list_data = json.load(f_back_file)
+                except:
+                    result = {'ret': False, 'msg': "load file error,Please check your input file"}
+                    return result
+                if len(list_data) == 0:
+                    result = {'ret': False, 'msg': "File content is empty."}
+                    return result
+
+                restore_body = {}
+                restore_body = {"ConfigContent": list_data, "Passphrase": backup_password}
+                restore_target_url = result['entries']['Actions']['#LenovoConfigurationService.RestoreConfiguration']['target']
+                print("Start restoring bmc configuration, may take 1~5 minutes ...")
+                response = self.post(restore_target_url, body=restore_body)
+                
+                if response.status not in [200]:
+                    result = {'ret': False, 'msg': "Failed to restore bmc configuration. Url: %s. Error code is %s. Error message is %s. " % \
+                              (restore_target_url, response.status, response.text)}
+                    LOGGER.error(result['msg'])
+                    return result
+
+                # Check restore status after action
+                for i in range(120): # Wait max 10 minutes
+                    result = self.__get_url(config_url)
+                    if result['ret'] == False:
+                        return result
+                    if 'RestoreStatus' in result['entries'] and 'Restore was successful' in result['entries']['RestoreStatus']:
+                        result = {'ret': True, 'msg':"Succeed to restore bmc configuration."}
+                        return result
+                    time.sleep(5)
+
+                result = {'ret': False, 'msg':"Restoring bmc configuration does not finished in 10 minutes."}
+                return result
+
+            if bmc_type == 'TSM':
+                if httpip is None or httpdir is None or backup_file is None:
+                    msg = "This product only supports HTTP protocol, please specify httpip, httpdir and backup_file."
+                    result = {"ret": False, "msg": error_message}
+                    return result
+                body = {}
+                body['RestoreFileName'] = backup_file
+                body['password'] = backup_password
+                body['serverIP'] = httpip
+                body['serverPort'] = int(httpport)
+                body['folderPath'] = httpdir.strip("/")
+                export_uri = 'http://' + httpip + ':' + str(httpport) + '/' + httpdir
+
+                restore_url = result['entries']['Actions']['Oem']['#Manager.Restore']['target']                
+                print("Start restoring bmc configuration, may take 1~5 minutes ...")
+                print(body)
+                print(restore_url)
+                print(export_uri)
+                response = self.post(restore_url, body=body)
+                if response.status not in [202]:
+                    result = {'ret': False, 'msg': "Failed to restore bmc configuration. Url: %s. Error code is %s. Error message is %s. " % \
+                              (restore_url, response.status, response.text)}
+                    LOGGER.error(result['msg'])
+                    return result
+
+                task_uri = response.dict['@odata.id']
+                result = self.__task_monitor(task_uri)
+                self.delete(task_uri, None)
+                if result['ret'] == True:
+                    result['msg'] = "Succeed to restore bmc configuration."
+                return result
+                #result = {'ret': True, 'msg': "BMC will restart to restore configuration, may take 1~5 minutes ..."}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to restore bmc configuration. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+
 
 # TBU
 if __name__ == "__main__":
     # initiate LenovoRedfishClient object, specify ip/user/password/authentication.
-    #lenovo_redfish = LenovoRedfishClient('10.245.39.153', 'renxulei', 'PASSW0RD12q', auth='basic')
-    lenovo_redfish = LenovoRedfishClient('10.245.39.251', 'renxulei', 'PASSW0RD12q', auth='basic')
+    #lenovo_redfish = LenovoRedfishClient('10.245.39.153', 'renxulei', 'PASSW0RD12q', auth='session')
+    lenovo_redfish = LenovoRedfishClient('10.245.39.251', 'renxulei', 'PASSW0RD12q', auth='session')
 
     # setup connection with bmc.
     lenovo_redfish.login()
@@ -2242,6 +2473,7 @@ if __name__ == "__main__":
     #result = lenovo_redfish.set_bios_boot_order(bootorder)
     #result = lenovo_redfish.get_bios_boot_order()
     #result = lenovo_redfish.get_firmware_inventory()
+    #result = lenovo_redfish.get_virtual_media()
 
 
     # XCC:
@@ -2255,6 +2487,8 @@ if __name__ == "__main__":
     #result = lenovo_redfish.lenovo_mount_virtual_media(image='bios.iso', fsdir='/home/nfs', fsprotocol='NFS', fsip='10.245.100.159')
     #result = lenovo_redfish.lenovo_mount_virtual_media(image='efiboot.img', fsdir='/upload', fsprotocol='HTTP', fsip='10.103.62.175', fsport='8080')
     #result = lenovo_redfish.lenovo_umount_virtual_media('bios.iso')
+    #result = lenovo_redfish.lenovo_bmc_config_backup(backup_password='Aa1234567')
+    result = lenovo_redfish.lenovo_bmc_config_restore(backup_password='Aa1234567', backup_file='.\\aaaaaaaa.json')
 
 
     # AMD
@@ -2266,11 +2500,11 @@ if __name__ == "__main__":
     #result = lenovo_redfish.lenovo_export_ffdc(fsdir='/upload', fsprotocol='HTTP', fsip='10.103.62.175')
     #result = lenovo_redfish.lenovo_mount_virtual_media(image='bios.iso', fsdir='/home/nfs', fsprotocol='NFS', fsip='10.245.100.159')
     #result = lenovo_redfish.lenovo_umount_virtual_media('bios.iso')
+    #result = lenovo_redfish.lenovo_bmc_config_backup(backup_password='Aa1234567', httpip='10.103.62.175', httpport='8080', httpdir='upload')
+    #result = lenovo_redfish.lenovo_bmc_config_restore(backup_password='Aa1234567', backup_file='bmc-config%20(23).bin', httpip='10.103.62.175', httpport='8080', httpdir='upload')
 
 
 
-
-    #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
