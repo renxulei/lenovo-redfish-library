@@ -2411,6 +2411,142 @@ class LenovoRedfishClient(HttpClient):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
+    def reset_bmc(self, reset_type=None):
+        """Restore bmc configuration
+        :params reset_type: for XCC: ['GracefulRestart', 'ForceRestart']. for TSM: ['ForceRestart']
+        :type reset_type: string
+        :returns: returns the result of reseting bmc
+        """
+        result = {}
+        try:
+            manager_url = self.__find_manager_resource()
+            bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
+            
+            result = self.__get_url(manager_url)
+            if result['ret'] == False:
+                return result
+
+            reset_scope = ['GracefulRestart', 'ForceRestart'] if bmc_type == 'XCC' else ['ForceRestart']
+            if reset_type != None and reset_type not in reset_scope:
+                result = {'ret': False, 'msg': "Please specify reset_type in %s." % reset_scope}
+                return result
+
+            reset_url = result['entries']['Actions']['#Manager.Reset']['target']
+            # Build request body and send requests to restart manager
+            body = {}
+            if reset_type != None:
+                body = {'ResetType': reset_type}
+            else:
+                if 'GracefulRestart' in reset_scope:
+                    body = {'ResetType': 'GracefulRestart'}
+                elif 'ForceRestart' in reset_scope:
+                    body = {'ResetType': 'ForceRestart'}
+                else:
+                    body = {"Action": "Manager.Reset"}
+
+            # perform post to restart bmc
+            headers = {"Content-Type":"application/json"}
+            response = self.post(reset_url, headers=headers, body=body)
+            if response.status in [200, 204]:
+                result = {'ret': True, 'msg': "Succeed to reset bmc."}
+            else: 
+                result = {'ret': False, 'msg': "Failed to reset bmc. Url: %s. Error code is %s. Error message is %s. " % \
+                          (reset_url, response.status, response.text)}
+                LOGGER.error(result['msg'])
+            return result
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to reset bmc. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def get_system_log(self, type='system'):
+        """Get system event logs
+        :params type: 'system', 'manager' or 'chassis'
+        :type type: string
+        :returns: returns List of system event logs
+        """
+        result = {}
+        try:
+            if type not in ['system', 'manager', 'chassis']:
+                result = {'ret': False, 'msg': "Please specify type in ['system', 'manager', 'chassis']."}
+                return result
+
+            if type == "system":
+                resource_url = self.__find_system_resource()
+            elif type == "manager":
+                resource_url = self.__find_manager_resource()
+            else:
+                resource_url = self.__find_chassis_resource()
+            log_service_url = resource_url + '/LogServices'
+            result = self.__get_url(resource_url)
+            if result['ret'] == False:
+                return result
+
+            log_service_url = result['entries']['LogServices']['@odata.id']
+            result = self.__get_collection(log_service_url)
+            if result['ret'] == False:
+                return result
+            
+            log_details = []
+            for member in result['entries']:
+                id = member['Id']
+                entries_url = member['Entries']['@odata.id']
+                result_logs = self.__get_collection(entries_url)
+                if result_logs['ret'] == False:
+                    return result_logs
+                data_filtered = propertyFilter(result_logs['entries'])
+                log = {'Id': id, 'Entries': data_filtered}
+                log_details.append(log)
+            result = {'ret': True, 'entries': log_details}
+            return result
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get system storage inventory. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def set_bmc_ntp(self, ntp_server, protocol_enabled='1'):
+        """Set bmc ntp server
+        :params ntp_server: ntp server list
+        :type ntp_server: list
+        :params protocol_enabled: Enable NTP or not. 1: Enable, 0: Disable
+        :type protocol_enabled: number
+        :returns: returns the result to set bmc's ntp
+        """
+        result = {}
+        try:
+            manager_url = self.__find_manager_resource()
+            result = self.__get_url(manager_url + '/NetworkProtocol')
+            if result['ret'] == False:
+                return result
+            
+            if 'NTP' not in result['entries']:
+                result = {'ret': False, 'msg': "Failed to find NTP property."}
+                return result
+            
+            if "@odata.etag" in result['entries']:
+                etag = result['entries']['@odata.etag']
+            else:
+                etag = ""
+            headers = {"If-Match": etag}
+            
+            # Build patch body for request set ntp servers
+            protocol = {"NTPServers":ntp_server,"ProtocolEnabled":  bool(int(protocol_enabled))}
+            body = {"NTP": protocol}
+            response = self.patch(manager_url + '/NetworkProtocol', body=body, headers=headers)
+            if response.status in [200,204]:
+                result = {'ret': True, 'msg': "Succeed to set bmc's NTP servers."}
+            else:
+                LOGGER.error(str(response))
+                result = {'ret': False, 'msg': "Failed to set bmc's NTP servers. Error code is %s. Error message is %s. " % \
+                         (response.status, response.text)}
+            return result
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to set bmc's NTP servers. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
 
 # TBU
@@ -2469,6 +2605,11 @@ if __name__ == "__main__":
     #result = lenovo_redfish.get_bios_boot_order()
     #result = lenovo_redfish.get_firmware_inventory()
     #result = lenovo_redfish.get_virtual_media()
+    #result = lenovo_redfish.reset_bmc()
+    ##result = lenovo_redfish.get_system_log()
+    #ntp_server_list = ['2.2.2.2','3.3.3.3']
+    #result = lenovo_redfish.set_bmc_ntp(ntp_server_list, 0)
+    #result = lenovo_redfish.get_bmc_ntp()
 
 
     # XCC:
@@ -2496,15 +2637,21 @@ if __name__ == "__main__":
     #result = lenovo_redfish.lenovo_mount_virtual_media(image='bios.iso', fsdir='/home/nfs', fsprotocol='NFS', fsip='10.245.100.159')
     #result = lenovo_redfish.lenovo_umount_virtual_media('bios.iso')
     #result = lenovo_redfish.lenovo_bmc_config_backup(backup_password='Aa1234567', httpip='10.103.62.175', httpport='8080', httpdir='upload/renxulei')
-    result = lenovo_redfish.lenovo_bmc_config_restore(backup_password='Aa1234567', backup_file='bmc-config.bin', httpip='10.103.62.175', httpport='8080', httpdir='upload/renxulei')
+    #result = lenovo_redfish.lenovo_bmc_config_restore(backup_password='Aa1234567', backup_file='bmc-config.bin', httpip='10.103.62.175', httpport='8080', httpdir='upload/renxulei')
+
+
+
 
 
 
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
     #result = lenovo_redfish.get_bmc_ntp()
-
-
+    #result = lenovo_redfish.get_bmc_ntp()
+    #result = lenovo_redfish.get_bmc_ntp()
+    #result = lenovo_redfish.get_bmc_ntp()
+    #result = lenovo_redfish.get_bmc_ntp()
+    #result = lenovo_redfish.get_bmc_ntp()
 
 
     # after completed management action, you must logout to clear session. 
