@@ -57,25 +57,25 @@ class LenovoRedfishClient(HttpClient):
         :type auth: str
         """
 
-        self._ip = ip
-        self._user = username
-        self._password = password
-        self._auth = auth
-        self._systemid = ''
-        self._managerid = ''
-        self._chassisid = ''
-        self._cafile = ''
-        self._fsprotocol = ''
-        self._fsport = ''
-        self._fsip = ''
-        self._fsusername = ''
-        self._fspassword = ''
-        self._fsdir = ''
-        self._suburl_system = ''
-        self._suburl_manager = ''
-        self._suburl_chassis = ''
-        self._long_connection = False
-        self._bmc_type = ''
+        self.__ip = ip
+        self.__user = username
+        self.__password = password
+        self.__auth = auth
+        self.__systemid = ''
+        self.__managerid = ''
+        self.__chassisid = ''
+        self.__cafile = ''
+        self.__fsprotocol = ''
+        self.__fsport = ''
+        self.__fsip = ''
+        self.__fsusername = ''
+        self.__fspassword = ''
+        self.__fsdir = ''
+        self.__suburl_system = ''
+        self.__suburl_manager = ''
+        self.__suburl_chassis = ''
+        self.__long_connection = False
+        self.__bmc_type = ''
 
         try:
             config_ini_info = {}
@@ -83,31 +83,31 @@ class LenovoRedfishClient(HttpClient):
             result = read_config(configfile)
             
             if result['ret'] == True:
-                if self._ip == '':
-                    self._ip = result['entries']['bmcip']
-                if self._user == '':
-                    self._user = result['entries']['bmcusername']
-                if self._password == '':
-                    self._password = result['entries']['bmcuserpassword']
-                if self._auth == '' and result['entries']['auth'] != '':
-                    self._auth = result['entries']['auth']
+                if self.__ip == '':
+                    self.__ip = result['entries']['bmcip']
+                if self.__user == '':
+                    self.__user = result['entries']['bmcusername']
+                if self.__password == '':
+                    self.__password = result['entries']['bmcuserpassword']
+                if self.__auth == '' and result['entries']['auth'] != '':
+                    self.__auth = result['entries']['auth']
  
-                self._systemid = result['entries']['systemid']
-                self._managerid = result['entries']['managerid']
-                self._cafile = result['entries']['cafile']
-                self._fsprotocol = result['entries']['fsprotocol']
-                self._fsport = result['entries']['fsport']
-                self._fsip = result['entries']['fsip']
-                self._fsusername = result['entries']['fsusername']
-                self._fspassword = result['entries']['fspassword']
-                self._fsdir = result['entries']['fsdir']
+                self.__systemid = result['entries']['systemid']
+                self.__managerid = result['entries']['managerid']
+                self.__cafile = result['entries']['cafile']
+                self.__fsprotocol = result['entries']['fsprotocol']
+                self.__fsport = result['entries']['fsport']
+                self.__fsip = result['entries']['fsip']
+                self.__fsusername = result['entries']['fsusername']
+                self.__fspassword = result['entries']['fspassword']
+                self.__fsdir = result['entries']['fsdir']
 
-            if self._auth == '' or self._auth not in ['session', 'basic']:
-                self._auth = 'session'
+            if self.__auth == '' or self.__auth not in ['session', 'basic']:
+                self.__auth = 'session'
           
-            login_host = "https://" + self._ip
+            login_host = "https://" + self.__ip
             super(LenovoRedfishClient, self).__init__(base_url=login_host, \
-                        username=self._user, password=self._password, \
+                        username=self.__user, password=self.__password, \
                         default_prefix='/redfish/v1', capath=None, \
                         cafile=None, timeout=None, max_retry=3)
         except Exception as e:
@@ -116,97 +116,97 @@ class LenovoRedfishClient(HttpClient):
     # Once enabling this, logout will not clear the session info.
     # When you want to run several functions continuously, 
     # you can enable this, this will save the time to setup connection. 
-    def _set_long_connection(self, is_enable=True):
+    def __set_long_connection(self, is_enable=True):
         """enable/disable long connection"""
-        self._long_connection = is_enable
+        self.__long_connection = is_enable
 
-    def _find_system_resource(self):
-        if self._suburl_system != '':
-            return self._suburl_system
+    def __find_system_resource(self):
+        if self.__suburl_system != '':
+            return self.__suburl_system
 
         suburl = '/redfish/v1/Systems'
-        result = self._get_url(suburl)
+        result = self.__get_url(suburl)
 
         if result['ret'] == True:
             for member in result['entries']['Members']:
-                if self._systemid == '':
-                    self._suburl_system = member['@odata.id']
-                    return self._suburl_system
-                if self._systemid == member['@odata.id'].split("/")[-1]:
-                    self._suburl_system = member['@odata.id']
-                    return self._suburl_system
-            if self._suburl_system == '':
-                LOGGER.error("Error_message: Failed to find the system resource. System id is %s ." % self._systemid)
-        return self._suburl_system
+                if self.__systemid == '':
+                    self.__suburl_system = member['@odata.id']
+                    return self.__suburl_system
+                if self.__systemid == member['@odata.id'].split("/")[-1]:
+                    self.__suburl_system = member['@odata.id']
+                    return self.__suburl_system
+            if self.__suburl_system == '':
+                LOGGER.error("Error_message: Failed to find the system resource. System id is %s ." % self.__systemid)
+        return self.__suburl_system
 
 
-    def _find_manager_resource(self):
-        if self._suburl_manager != '':
-            return self._suburl_manager
+    def __find_manager_resource(self):
+        if self.__suburl_manager != '':
+            return self.__suburl_manager
 
         suburl = '/redfish/v1/Managers'
-        result = self._get_url(suburl)
+        result = self.__get_url(suburl)
         if result['ret'] == True:
             for member in result['entries']['Members']:
-                if self._managerid == '':
-                    self._suburl_manager = member['@odata.id']
-                    return self._suburl_manager
-                if self._managerid == member['@odata.id'].split("/")[-1]:
-                    self._suburl_manager = member['@odata.id']
-                    return self._suburl_manager
-            if self._suburl_manager == '':
-                LOGGER.error("Error_message: Failed to find the manager resource. Manager id is %s ." % self._managerid)
-        return self._suburl_manager
+                if self.__managerid == '':
+                    self.__suburl_manager = member['@odata.id']
+                    return self.__suburl_manager
+                if self.__managerid == member['@odata.id'].split("/")[-1]:
+                    self.__suburl_manager = member['@odata.id']
+                    return self.__suburl_manager
+            if self.__suburl_manager == '':
+                LOGGER.error("Error_message: Failed to find the manager resource. Manager id is %s ." % self.__managerid)
+        return self.__suburl_manager
 
 
-    def _find_chassis_resource(self):
-        if self._suburl_chassis != '':
-            return self._suburl_chassis
+    def __find_chassis_resource(self):
+        if self.__suburl_chassis != '':
+            return self.__suburl_chassis
 
         suburl = '/redfish/v1/Chassis'
-        result = self._get_collection(suburl)
+        result = self.__get_collection(suburl)
         if result['ret'] == True:
             for member in result['entries']:
-                if self._chassisid == '':
+                if self.__chassisid == '':
                     # For some density server or highend server, we may have multiple chassis.
                     # We must find the chassis linked with one system.
                     if 'Links' in member and 'ComputerSystems' in member['Links']:
-                        self._suburl_chassis = member['@odata.id']
-                        return self._suburl_chassis
-                if self._chassisid == member['@odata.id'].split("/")[-1]:
-                    self._suburl_chassis = member['@odata.id']
-                    return self._suburl_chassis
-            if self._suburl_chassis == '':
-                LOGGER.error("Error_message: Failed to find the chassis resource. Chassis id is %s ." % self._chassisid)
-        return self._suburl_chassis
+                        self.__suburl_chassis = member['@odata.id']
+                        return self.__suburl_chassis
+                if self.__chassisid == member['@odata.id'].split("/")[-1]:
+                    self.__suburl_chassis = member['@odata.id']
+                    return self.__suburl_chassis
+            if self.__suburl_chassis == '':
+                LOGGER.error("Error_message: Failed to find the chassis resource. Chassis id is %s ." % self.__chassisid)
+        return self.__suburl_chassis
 
     def login(self, username=None, password=None, auth=None):
         changed = False
-        if username != None and self._user != username:
+        if username != None and self.__user != username:
             changed = True
-            self._user = username
-        if password != None and self._password != password:
+            self.__user = username
+        if password != None and self.__password != password:
             changed = True
-            self._password = password
-        if auth != None and self._auth != auth:
+            self.__password = password
+        if auth != None and self.__auth != auth:
             changed = True
-            self._auth = auth
+            self.__auth = auth
 
         # re-create connection once user/password/auth specified
         if changed:
             self.set_session_key(None)
             self.set_authorization_key(None)
-            return super(LenovoRedfishClient, self).login(username=self._user, password=self._password, auth=self._auth)
+            return super(LenovoRedfishClient, self).login(username=self.__user, password=self.__password, auth=self.__auth)
 
-        if (self.get_session_key() != None and self._auth == 'session') or \
-           (self.get_authorization_key() != None and self._auth == 'basic'):
+        if (self.get_session_key() != None and self.__auth == 'session') or \
+           (self.get_authorization_key() != None and self.__auth == 'basic'):
             pass
         else:
-            return super(LenovoRedfishClient, self).login(username=self._user, password=self._password, auth=self._auth)
+            return super(LenovoRedfishClient, self).login(username=self.__user, password=self.__password, auth=self.__auth)
     
     def logout(self):
         # if long_connection is enabled, keep current session.
-        if self._long_connection == True:
+        if self.__long_connection == True:
             return
 
         if self.get_session_key() == None and self.get_authorization_key() == None:
@@ -223,7 +223,7 @@ class LenovoRedfishClient(HttpClient):
             self.set_session_key(None)
             self.set_authorization_key(None)
 
-    def _get_url(self, suburl):
+    def __get_url(self, suburl):
         try:
             resp = self.get(suburl)
             if resp.status in [200]:
@@ -239,13 +239,13 @@ class LenovoRedfishClient(HttpClient):
             return {'ret': False, 'msg': msg}
 
 
-    def _get_collection(self, suburl):
+    def __get_collection(self, suburl):
         data = list()
-        suburl_result = self._get_url(suburl)
+        suburl_result = self.__get_url(suburl)
         if suburl_result['ret'] == True:
             if 'Members' in suburl_result['entries']:
                 for member in suburl_result['entries']['Members']:
-                    memberurl_result = self._get_url(member['@odata.id'])
+                    memberurl_result = self.__get_url(member['@odata.id'])
                     if memberurl_result['ret'] == True:
                         data.append(memberurl_result['entries'])
                     else:
@@ -267,8 +267,8 @@ class LenovoRedfishClient(HttpClient):
 
         result = {}
         try:
-            system_url = self._find_system_resource()
-            result_bios = self._get_url(system_url + '/Bios')
+            system_url = self.__find_system_resource()
+            result_bios = self.__get_url(system_url + '/Bios')
             if result_bios['ret'] == False:
                 return result_bios
 
@@ -278,7 +278,7 @@ class LenovoRedfishClient(HttpClient):
             else:
                 # Get pending url
                 pending_url = result_bios['entries']['@Redfish.Settings']['SettingsObject']['@odata.id']
-                result_pending_url = self._get_url(pending_url)
+                result_pending_url = self.__get_url(pending_url)
                 if result_pending_url['ret'] == False:
                     return result_pending_url
 
@@ -326,8 +326,8 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            system_url = self._find_system_resource()
-            result = self._get_url(system_url + '/Bios')
+            system_url = self.__find_system_resource()
+            result = self.__get_url(system_url + '/Bios')
 
             if result['ret'] == False:
                 return result
@@ -337,7 +337,7 @@ class LenovoRedfishClient(HttpClient):
 
             # Find the AttributeRegistry json file uri from Registries
             registry_url = "/redfish/v1/Registries"
-            result = self._get_url(registry_url)
+            result = self.__get_url(registry_url)
             if result['ret'] != True:
                 return result
             bios_registry_url = None
@@ -348,13 +348,13 @@ class LenovoRedfishClient(HttpClient):
             if bios_registry_url is None:
                 return {'ret': False, 'msg': "Can not find %s in Registries" % (attribute_registry)}
 
-            result = self._get_url(bios_registry_url)
+            result = self.__get_url(bios_registry_url)
             if result['ret'] != True:
                 return result
             bios_registry_json_url = result['entries']['Location'][0]['Uri']
 
             # Download the AttributeRegistry json file
-            result = self._get_url(bios_registry_json_url)
+            result = self.__get_url(bios_registry_json_url)
             return result
             #if result['ret'] != True:
             #    return result
@@ -433,11 +433,11 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            manager_url = self._find_manager_resource()
+            manager_url = self.__find_manager_resource()
             
             # Get the BMC information
             bmc_info = {}
-            result_manager = self._get_url(manager_url)
+            result_manager = self.__get_url(manager_url)
             if result_manager['ret'] == True:
                 bmc_info = propertyFilter(result_manager['entries'])
             else:
@@ -476,8 +476,8 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            manager_url = self._find_manager_resource()
-            result_network = self._get_url(manager_url + '/NetworkProtocol')
+            manager_url = self.__find_manager_resource()
+            result_network = self.__get_url(manager_url + '/NetworkProtocol')
             if result_network['ret'] == False:
                 return result_network
             network_protocol = propertyFilter(result_network['entries'])
@@ -494,8 +494,8 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            manager_url = self._find_manager_resource()          
-            result_serial = self._get_collection(manager_url + '/SerialInterfaces')
+            manager_url = self.__find_manager_resource()          
+            result_serial = self.__get_collection(manager_url + '/SerialInterfaces')
             if result_serial['ret'] == False:
                 return result_serial
 
@@ -516,8 +516,8 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            manager_url = self._find_manager_resource()
-            result_ethernet = self._get_collection(manager_url + '/EthernetInterfaces')
+            manager_url = self.__find_manager_resource()
+            result_ethernet = self.__get_collection(manager_url + '/EthernetInterfaces')
             if result_ethernet['ret'] == False:
                 return result_ethernet
 
@@ -538,8 +538,8 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            manager_url = self._find_manager_resource()           
-            result_vm = self._get_collection(manager_url + '/VirtualMedia')
+            manager_url = self.__find_manager_resource()           
+            result_vm = self.__get_collection(manager_url + '/VirtualMedia')
             if result_vm['ret'] == False:
                 return result_vm
 
@@ -560,8 +560,8 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            manager_url = self._find_manager_resource()
-            result_hostinfs = self._get_collection(manager_url + '/HostInterfaces')
+            manager_url = self.__find_manager_resource()
+            result_hostinfs = self.__get_collection(manager_url + '/HostInterfaces')
             if result_hostinfs['ret'] == False:
                 return result_hostinfs
 
@@ -569,14 +569,14 @@ class LenovoRedfishClient(HttpClient):
             for member in hostinf_info_list:
                 if 'HostEthernetInterfaces' in member.keys():
                     host_eth_url = member["HostEthernetInterfaces"]['@odata.id']
-                    result_host_eth = self._get_collection(host_eth_url)
+                    result_host_eth = self.__get_collection(host_eth_url)
                     if result_host_eth['ret'] == True: 
                         member['HostEthernetInterfaces'] = propertyFilter(result_host_eth['entries'])
                     else:
                         return result_host_eth
                 if 'ManagerEthernetInterface' in member.keys():
                     manager_eth_url = member["ManagerEthernetInterface"]['@odata.id']
-                    result_manager_eth = self._get_url(manager_eth_url)
+                    result_manager_eth = self.__get_url(manager_eth_url)
                     if result_manager_eth['ret'] == True: 
                         member['ManagerEthernetInterface'] = propertyFilter(result_manager_eth['entries'])
                     else:
@@ -614,10 +614,10 @@ class LenovoRedfishClient(HttpClient):
         result = {}
         try:
             # Find ComputerSystem resource's url
-            system_url = self._find_system_resource()
+            system_url = self.__find_system_resource()
             
             # Get the Processors collection
-            result = self._get_collection(system_url + '/Processors')
+            result = self.__get_collection(system_url + '/Processors')
             if result['ret'] == False:
                 return result
             
@@ -642,11 +642,11 @@ class LenovoRedfishClient(HttpClient):
         result = {}
         try:
             # Find ComputerSystem resource's url
-            system_url = self._find_system_resource()
+            system_url = self.__find_system_resource()
 
             # Get the Processors collection
             list_memory_info = []
-            result = self._get_collection(system_url + '/Memory')
+            result = self.__get_collection(system_url + '/Memory')
             if result['ret'] == False:
                 return result
             
@@ -682,10 +682,10 @@ class LenovoRedfishClient(HttpClient):
         result = {}
         try:
             # Find ComputerSystem resource's url
-            system_url = self._find_system_resource()
+            system_url = self.__find_system_resource()
 
             # Get the Processors collection
-            result = self._get_collection(system_url + '/EthernetInterfaces')
+            result = self.__get_collection(system_url + '/EthernetInterfaces')
             
             if result['ret'] == False:
                 return result
@@ -711,10 +711,10 @@ class LenovoRedfishClient(HttpClient):
         result = {}
         try:
             # Find ComputerSystem resource's url
-            system_url = self._find_system_resource()
+            system_url = self.__find_system_resource()
 
             # Get the Processors collection
-            result = self._get_collection(system_url + '/Storage')
+            result = self.__get_collection(system_url + '/Storage')
             if result['ret'] == False:
                 return result
             
@@ -725,7 +725,7 @@ class LenovoRedfishClient(HttpClient):
                 if 'Drives' in member:
                     list_drives = []
                     for drive in member['Drives']:
-                        result_drive = self._get_url(drive['@odata.id'])
+                        result_drive = self.__get_url(drive['@odata.id'])
                         if result_drive['ret'] == True:
                             drive_info = propertyFilter(result_drive['entries'])
                             list_drives.append(drive_info)
@@ -734,7 +734,7 @@ class LenovoRedfishClient(HttpClient):
                     storage_info['Drives'] = list_drives
 
                 if 'Volumes' in member:
-                    result_volumes = self._get_collection(member['Volumes']['@odata.id'])
+                    result_volumes = self.__get_collection(member['Volumes']['@odata.id'])
                     list_volumes = []
                     if result_volumes['ret'] == True:
                         for volume in result_volumes['entries']:
@@ -768,10 +768,10 @@ class LenovoRedfishClient(HttpClient):
         result = {}
         try:
             # Find ComputerSystem resource's url
-            system_url = self._find_system_resource()
+            system_url = self.__find_system_resource()
 
             # Get the Processors collection
-            result = self._get_collection(system_url + '/SimpleStorage')
+            result = self.__get_collection(system_url + '/SimpleStorage')
             
             if result['ret'] == False:
                 return result
@@ -793,7 +793,7 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            manager_url = self._find_system_resource()
+            manager_url = self.__find_system_resource()
             storage_info = {}
             
             # Get system Storage resource
@@ -819,8 +819,8 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            system_url = self._find_system_resource()
-            result = self._get_url(system_url)
+            system_url = self.__find_system_resource()
+            result = self.__get_url(system_url)
             if result['ret'] == False:
                 return result
             power_state = {}
@@ -838,11 +838,11 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            system_url = self._find_system_resource()
+            system_url = self.__find_system_resource()
             
             # Get the system information
             system_info = {}
-            result_system = self._get_url(system_url)
+            result_system = self.__get_url(system_url)
             if result_system['ret'] == True:
                 system_info = propertyFilter(result_system['entries'], \
                     common_property_excluded + ['Processors', 'Memory', \
@@ -869,15 +869,15 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            chassis_url = self._find_chassis_resource()        
-            result_pci = self._get_collection(chassis_url + '/PCIeDevices')
+            chassis_url = self.__find_chassis_resource()        
+            result_pci = self.__get_collection(chassis_url + '/PCIeDevices')
             if result_pci['ret'] == False:
                 return result_pci
             list_pci_info = propertyFilter(result_pci['entries'])
 
             for member in list_pci_info:
                 if 'PCIeFunctions' in member:
-                    result_pci_func = self._get_collection(member['PCIeFunctions']['@odata.id'])
+                    result_pci_func = self.__get_collection(member['PCIeFunctions']['@odata.id'])
                     if result_pci_func['ret'] == False:
                         return result_pci_func
                     data_filtered = propertyFilter(result_pci_func['entries'])
@@ -898,22 +898,22 @@ class LenovoRedfishClient(HttpClient):
         result = {}
         try:
             # firstly, try to get NetworkAdapter's info from Chassis.
-            chassis_url = self._find_chassis_resource()
+            chassis_url = self.__find_chassis_resource()
             
             list_nic_info = []
-            result_nic = self._get_collection(chassis_url + '/NetworkAdapters')
+            result_nic = self.__get_collection(chassis_url + '/NetworkAdapters')
             
             if result_nic['ret'] == True:
                 list_nic_info = propertyFilter(result_nic['entries'], common_property_excluded, ['@Redfish'])
                 for member in list_nic_info:
                     if 'NetworkDeviceFunctions' in member:
-                        result_nic_func = self._get_collection(member['NetworkDeviceFunctions']['@odata.id'])
+                        result_nic_func = self.__get_collection(member['NetworkDeviceFunctions']['@odata.id'])
                         if result_nic_func['ret'] == False:
                             return result_nic_func
                         data_filtered = propertyFilter(result_nic_func['entries'], common_property_excluded)
                         member['NetworkDeviceFunctions'] = data_filtered
                     if 'NetworkPorts' in member:
-                        result_nic_ports = self._get_collection(member['NetworkPorts']['@odata.id'])
+                        result_nic_ports = self.__get_collection(member['NetworkPorts']['@odata.id'])
                         if result_nic_ports['ret'] == False:
                             return result_nic_ports
                         data_filtered = propertyFilter(result_nic_ports['entries'], common_property_excluded)
@@ -936,8 +936,8 @@ class LenovoRedfishClient(HttpClient):
         :returns: returns List of all Fan devices when succeeded or error message when failed
         """
         try:
-            chassis_url = self._find_chassis_resource()        
-            result = self._get_url(chassis_url + '/Thermal')
+            chassis_url = self.__find_chassis_resource()        
+            result = self.__get_url(chassis_url + '/Thermal')
             if result['ret'] == False:
                 return result
             list_fan_info = []
@@ -957,8 +957,8 @@ class LenovoRedfishClient(HttpClient):
         :returns: returns List of all temperatures when succeeded or error message when failed
         """
         try:
-            chassis_url = self._find_chassis_resource()        
-            result = self._get_url(chassis_url + '/Thermal')
+            chassis_url = self.__find_chassis_resource()        
+            result = self.__get_url(chassis_url + '/Thermal')
             if result['ret'] == False:
                 return result
             list_temp_info = []
@@ -971,13 +971,13 @@ class LenovoRedfishClient(HttpClient):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
-    def _get_power_info(self, property=None):
+    def __get_power_info(self, property=None):
         """Get property info from chassis power info 
         :returns: returns List of property info of power when succeeded or error message when failed
         """
         try:
-            chassis_url = self._find_chassis_resource()        
-            result = self._get_url(chassis_url + '/Power')
+            chassis_url = self.__find_chassis_resource()        
+            result = self.__get_url(chassis_url + '/Power')
             if result['ret'] == False:
                 return result
             
@@ -999,28 +999,28 @@ class LenovoRedfishClient(HttpClient):
         """Get PSU devices inventory
         :returns: returns List of all PSU devices when succeeded or error message when failed
         """         
-        return self._get_power_info('PowerSupplies')
+        return self.__get_power_info('PowerSupplies')
 
     def get_power_redundancy(self):
         """Get power redundancy info
         :returns: returns List of power redundancy info when succeeded or error message when failed
         """
         
-        return self._get_power_info('Redundancy')
+        return self.__get_power_info('Redundancy')
 
     def get_power_voltages(self):
         """Get power voltages info
         :returns: returns List of power voltages info when succeeded or error message when failed
         """
         
-        return self._get_power_info('Voltages')
+        return self.__get_power_info('Voltages')
 
     def get_power_metrics(self):
         """Get power metrics info
         :returns: returns Dict of power metrics of whole system when succeeded or error message when failed
         """
         power_metrics = {}
-        result = self._get_power_info('PowerControl')
+        result = self.__get_power_info('PowerControl')
         if result['ret'] == False:
             return result
         for member in result['entries']:
@@ -1034,7 +1034,7 @@ class LenovoRedfishClient(HttpClient):
         :returns: returns Dict of power limit of whole system when succeeded or error message when failed
         """
         power_metrics = {}
-        result = self._get_power_info('PowerControl')
+        result = self.__get_power_info('PowerControl')
         if result['ret'] == False:
             return result
         for member in result['entries']:
@@ -1052,14 +1052,14 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            system_url = self._find_system_resource()
-            result = self._get_url(system_url)
+            system_url = self.__find_system_resource()
+            result = self.__get_url(system_url)
             if result['ret'] == False:
                 return result
             if '@Redfish.ActionInfo' not in result['entries']["Actions"]["#ComputerSystem.Reset"]:
                 return {'ret': False, 'msg': "Failed to get system reset types."}
             actioninfo_url = result['entries']['Actions']['#ComputerSystem.Reset']['@Redfish.ActionInfo']
-            result = self._get_url(actioninfo_url)
+            result = self.__get_url(actioninfo_url)
             if result['ret'] == False:
                 return result
             if "Parameters" in result['entries']:
@@ -1084,8 +1084,8 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            system_url = self._find_system_resource()
-            result = self._get_url(system_url)
+            system_url = self.__find_system_resource()
+            result = self.__get_url(system_url)
             if result['ret'] == False:
                 return result
             target_url = result['entries']["Actions"]["#ComputerSystem.Reset"]["target"]
@@ -1114,8 +1114,8 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            system_url = self._find_system_resource()
-            result = self._get_url(system_url + '/Bios')
+            system_url = self.__find_system_resource()
+            result = self.__get_url(system_url + '/Bios')
             if result['ret'] == False: 
                 return result
 
@@ -1173,18 +1173,18 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            system_url = self._find_system_resource()
+            system_url = self.__find_system_resource()
             bmc_type = 'TSM' if 'Self' in system_url else 'XCC'
             
             if bmc_type == 'XCC':
-                result = self._get_url(system_url)
+                result = self.__get_url(system_url)
                 if result['ret'] == False: 
                     return result
                 # for current products
                 oem = result['entries']['Oem']
                 if 'Lenovo' in oem and 'BootSettings' in oem['Lenovo']:
                     boot_settings_url = oem['Lenovo']['BootSettings']['@odata.id']
-                    result = self._get_collection(boot_settings_url)
+                    result = self.__get_collection(boot_settings_url)
                     if result['ret'] == False:
                         return result
 
@@ -1198,7 +1198,7 @@ class LenovoRedfishClient(HttpClient):
                     pass
             
             if bmc_type == 'TSM':
-                result = self._get_url(system_url + '/Bios')
+                result = self.__get_url(system_url + '/Bios')
                 if result['ret'] == False:
                     return result
 
@@ -1218,7 +1218,7 @@ class LenovoRedfishClient(HttpClient):
                 # Get BootOrderNext
                 attribute_value_next = None
                 bios_settings_url = result['entries']['@Redfish.Settings']['SettingsObject']['@odata.id']
-                result = self._get_url(bios_settings_url)
+                result = self.__get_url(bios_settings_url)
                 if result['ret'] == False:
                     return result
                 if 'Attributes' in result['entries'] and attribute_name in result['entries']['Attributes']:
@@ -1262,10 +1262,10 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            system_url = self._find_system_resource()
+            system_url = self.__find_system_resource()
             bmc_type = 'TSM' if 'Self' in system_url else 'XCC'
             
-            result = self._get_url(system_url)
+            result = self.__get_url(system_url)
             if result['ret'] == False: 
                 return result
 
@@ -1274,7 +1274,7 @@ class LenovoRedfishClient(HttpClient):
                 oem = result['entries']['Oem']
                 if 'Lenovo' in oem and 'BootSettings' in oem['Lenovo']:
                     boot_settings_url = oem['Lenovo']['BootSettings']['@odata.id']
-                    result = self._get_collection(boot_settings_url)
+                    result = self.__get_collection(boot_settings_url)
                     if result['ret'] == False:
                         return result
 
@@ -1384,7 +1384,7 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            result = self._get_collection('/redfish/v1/AccountService/Accounts')
+            result = self.__get_collection('/redfish/v1/AccountService/Accounts')
             if result['ret'] == False:
                 return result
 
@@ -1393,7 +1393,7 @@ class LenovoRedfishClient(HttpClient):
                 if "Links" in member and "Role" in member["Links"]:
                     accounts_role_url = member["Links"]["Role"]["@odata.id"]
                     # Get the BMC user privileges info
-                    result_role = self._get_url(accounts_role_url)
+                    result_role = self.__get_url(accounts_role_url)
                     if result_role['ret'] == False:
                         return result_role
                     privileges = result_role['entries']["AssignedPrivileges"]
@@ -1410,8 +1410,8 @@ class LenovoRedfishClient(HttpClient):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
-    def _check_bmc_type(self):
-        manager_url = self._find_manager_resource()
+    def __check_bmc_type(self):
+        manager_url = self.__find_manager_resource()
         bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
         return bmc_type
 
@@ -1428,7 +1428,7 @@ class LenovoRedfishClient(HttpClient):
         result = {}
         try:
             accounts_url = '/redfish/v1/AccountService/Accounts'
-            bmc_type = self._check_bmc_type()
+            bmc_type = self.__check_bmc_type()
             # for TSM (SR635/655)
             if bmc_type == 'TSM':
                 # Set user privilege
@@ -1459,7 +1459,7 @@ class LenovoRedfishClient(HttpClient):
                             (username, post_response.status, post_response.text)}
             
             # for XCC
-            result = self._get_collection('/redfish/v1/AccountService/Accounts')
+            result = self.__get_collection('/redfish/v1/AccountService/Accounts')
             if result['ret'] == False:
                 return result
 
@@ -1473,7 +1473,7 @@ class LenovoRedfishClient(HttpClient):
                 # found first empty account
                 account_url = member['@odata.id']
                 role_url = member["Links"]["Role"]["@odata.id"]
-                #result_role = self._get_url(roleuri)
+                #result_role = self.__get_url(roleuri)
                 parameter = {
                     "OemPrivileges": authority
                 }
@@ -1517,8 +1517,8 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            bmc_type = self._check_bmc_type()
-            result = self._get_collection('/redfish/v1/AccountService/Accounts')
+            bmc_type = self.__check_bmc_type()
+            result = self.__get_collection('/redfish/v1/AccountService/Accounts')
             if result['ret'] == False:
                 return result
 
@@ -1574,8 +1574,8 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            manager_url = self._find_manager_resource()
-            result = self._get_url(manager_url + '/NetworkProtocol')
+            manager_url = self.__find_manager_resource()
+            result = self.__get_url(manager_url + '/NetworkProtocol')
             if result['ret'] == False:
                 return result
             
@@ -1624,12 +1624,12 @@ class LenovoRedfishClient(HttpClient):
         :returns: returns List of firmwares when succeeded or error message when failed
         """
         try:
-            result = self._get_url('/redfish/v1/UpdateService')
+            result = self.__get_url('/redfish/v1/UpdateService')
             if result['ret'] == False:
                 return result
 
             fw_url = result['entries']['FirmwareInventory']['@odata.id']
-            result = self._get_collection(fw_url)
+            result = self.__get_collection(fw_url)
             if result['ret'] == False:
                 return result
 
@@ -1642,7 +1642,7 @@ class LenovoRedfishClient(HttpClient):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
-    def _task_monitor(self, task_uri, wait_time=10):
+    def __task_monitor(self, task_uri, wait_time=10):
         """Monitor task status
         :params task_uri: task uri for tracking the update status.
         :type task_uri: string
@@ -1701,10 +1701,10 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            manager_url = self._find_manager_resource()
+            manager_url = self.__find_manager_resource()
             bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
             
-            result = self._get_url('/redfish/v1/UpdateService')
+            result = self.__get_url('/redfish/v1/UpdateService')
             if result['ret'] == False:
                 return result
 
@@ -1731,8 +1731,8 @@ class LenovoRedfishClient(HttpClient):
                     headers = {"Content-Type":"application/octet-stream"}
                     headers['X-Auth-Token'] = self.get_session_key()
                     files = {'data-binary':open(file_path,'rb')}
-                    if self._cafile is not None and self._cafile != "":
-                        response = requests.post(firmware_update_url, headers=headers, files=files, verify=self._cafile)
+                    if self.__cafile is not None and self.__cafile != "":
+                        response = requests.post(firmware_update_url, headers=headers, files=files, verify=self.__cafile)
                     else:
                         # Ignore SSL Certificates
                         requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
@@ -1771,7 +1771,7 @@ class LenovoRedfishClient(HttpClient):
                     else:
                         task_uri = response.dict['@odata.id']
                     print("Start to refresh the firmware, please wait about 3~10 minutes...")
-                    result = self._task_monitor(task_uri)
+                    result = self.__task_monitor(task_uri)
                     if result['ret'] == True:
                         result['msg'] = "Succeed to update the firmware."
                     # Delete task
@@ -1824,7 +1824,7 @@ class LenovoRedfishClient(HttpClient):
                     print("Start to upload the image, may take about 3~10 minutes...")
                     firmware_update_url = multipart_uri
                     headers = {}
-                    if self._auth == 'session':
+                    if self.__auth == 'session':
                         headers["X-Auth-Token"] = self.get_session_key()
                         response = requests.post(multipart_uri, headers=headers, files=files, verify=False)
                     else:
@@ -1851,7 +1851,7 @@ class LenovoRedfishClient(HttpClient):
                         else:
                             task_uri = response.headers['Location']
                             print("Start to refresh the firmware, please wait about 3~10 minutes...")
-                            result = self._task_monitor(task_uri)
+                            result = self.__task_monitor(task_uri)
                             if result['ret'] == True:
                                 result['msg'] = "Succeed to update the firmware."
                             self.delete(task_uri, None)
@@ -1896,10 +1896,10 @@ class LenovoRedfishClient(HttpClient):
             result = {'ret': False, 'msg': "please check if protocol and file server info are correct."}
             return result
         try:
-            manager_url = self._find_manager_resource()
+            manager_url = self.__find_manager_resource()
             bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
             
-            result = self._get_url(manager_url)
+            result = self.__get_url(manager_url)
             if result['ret'] == False:
                 return result
 
@@ -1915,7 +1915,7 @@ class LenovoRedfishClient(HttpClient):
                     result = {'ret': False, 'msg': "Failed to find servicedata uri."}
                     return result
                 # Get servicedata resource
-                result = self._get_url(servicedata_uri)
+                result = self.__get_url(servicedata_uri)
                 if result['ret'] == False:
                     return result
 
@@ -1991,11 +1991,11 @@ class LenovoRedfishClient(HttpClient):
                         headers = {}
                         headers['Content-Type'] = "application/json"
                         # We must use session connection to get ffdc file.
-                        if self._auth == 'basic':
+                        if self.__auth == 'basic':
                             self.login(auth='session')
                         headers["X-Auth-Token"] = self.get_session_key()
 
-                        download_uri = "https://" + self._ip + download_uri
+                        download_uri = "https://" + self.__ip + download_uri
                         response_download = requests.get(download_uri, headers=headers, verify=False)
                         
                         if response_download.status_code not in [200, 202]:
@@ -2042,10 +2042,10 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            manager_url = self._find_manager_resource()
+            manager_url = self.__find_manager_resource()
             bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
             
-            result = self._get_collection(manager_url + '/VirtualMedia')
+            result = self.__get_collection(manager_url + '/VirtualMedia')
             if result['ret'] == False:
                 return result
 
@@ -2079,10 +2079,10 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            manager_url = self._find_manager_resource()
+            manager_url = self.__find_manager_resource()
             bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
             
-            result = self._get_collection(manager_url + '/VirtualMedia')
+            result = self.__get_collection(manager_url + '/VirtualMedia')
             if result['ret'] == False:
                 return result
 
@@ -2169,10 +2169,10 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            manager_url = self._find_manager_resource()
+            manager_url = self.__find_manager_resource()
             bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
             
-            result = self._get_collection(manager_url + '/VirtualMedia')
+            result = self.__get_collection(manager_url + '/VirtualMedia')
             if result['ret'] == False:
                 return result
 
@@ -2232,10 +2232,10 @@ class LenovoRedfishClient(HttpClient):
                 result = {'ret': False, 'msg': "Password is at least 9 characters"}
                 return result
 
-            manager_url = self._find_manager_resource()
+            manager_url = self.__find_manager_resource()
             bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
             
-            result = self._get_url(manager_url)
+            result = self.__get_url(manager_url)
             if result['ret'] == False:
                 return result
 
@@ -2243,7 +2243,7 @@ class LenovoRedfishClient(HttpClient):
                 if backup_file == None:
                     backup_file = os.getcwd() + os.sep + 'bmc_config_backup.json'
                 config_url = result['entries']['Oem']['Lenovo']['Configuration']['@odata.id']
-                result = self._get_url(config_url)
+                result = self.__get_url(config_url)
                 if result['ret'] == False:
                     return result
 
@@ -2294,7 +2294,7 @@ class LenovoRedfishClient(HttpClient):
                     return result
 
                 task_uri = response.dict['@odata.id']
-                result = self._task_monitor(task_uri)
+                result = self.__task_monitor(task_uri)
                 self.delete(task_uri, None)
                 if result['ret'] == True:
                     result['msg'] = "Succeed to back up bmc configuration, file is saved in '%s'." % export_uri
@@ -2326,10 +2326,10 @@ class LenovoRedfishClient(HttpClient):
                 result = {'ret': False, 'msg': "Password is at least 9 characters"}
                 return result
 
-            manager_url = self._find_manager_resource()
+            manager_url = self.__find_manager_resource()
             bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
             
-            result = self._get_url(manager_url)
+            result = self.__get_url(manager_url)
             if result['ret'] == False:
                 return result
 
@@ -2337,7 +2337,7 @@ class LenovoRedfishClient(HttpClient):
                 if backup_file == None:
                     backup_file = os.getcwd() + os.sep + 'bmc_config_backup.json'
                 config_url = result['entries']['Oem']['Lenovo']['Configuration']['@odata.id']
-                result = self._get_url(config_url)
+                result = self.__get_url(config_url)
                 if result['ret'] == False:
                     return result
 
@@ -2366,7 +2366,7 @@ class LenovoRedfishClient(HttpClient):
 
                 # Check restore status after action
                 for i in range(120): # Wait max 10 minutes
-                    result = self._get_url(config_url)
+                    result = self.__get_url(config_url)
                     if result['ret'] == False:
                         return result
                     if 'RestoreStatus' in result['entries'] and 'Restore was successful' in result['entries']['RestoreStatus']:
@@ -2400,7 +2400,7 @@ class LenovoRedfishClient(HttpClient):
                     return result
 
                 task_uri = response.dict['@odata.id']
-                result = self._task_monitor(task_uri)
+                result = self.__task_monitor(task_uri)
                 self.delete(task_uri, None)
                 if result['ret'] == True:
                     result['msg'] = "Succeed to restore bmc configuration. BMC will restart to reload the configuration, may take 1~5 minutes ..."
@@ -2419,10 +2419,10 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            manager_url = self._find_manager_resource()
+            manager_url = self.__find_manager_resource()
             bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
             
-            result = self._get_url(manager_url)
+            result = self.__get_url(manager_url)
             if result['ret'] == False:
                 return result
 
@@ -2473,18 +2473,18 @@ class LenovoRedfishClient(HttpClient):
                 return result
 
             if type == "system":
-                resource_url = self._find_system_resource()
+                resource_url = self.__find_system_resource()
             elif type == "manager":
-                resource_url = self._find_manager_resource()
+                resource_url = self.__find_manager_resource()
             else:
-                resource_url = self._find_chassis_resource()
+                resource_url = self.__find_chassis_resource()
             log_service_url = resource_url + '/LogServices'
-            result = self._get_url(resource_url)
+            result = self.__get_url(resource_url)
             if result['ret'] == False:
                 return result
 
             log_service_url = result['entries']['LogServices']['@odata.id']
-            result = self._get_collection(log_service_url)
+            result = self.__get_collection(log_service_url)
             if result['ret'] == False:
                 return result
             
@@ -2492,7 +2492,7 @@ class LenovoRedfishClient(HttpClient):
             for member in result['entries']:
                 id = member['Id']
                 entries_url = member['Entries']['@odata.id']
-                result_logs = self._get_collection(entries_url)
+                result_logs = self.__get_collection(entries_url)
                 if result_logs['ret'] == False:
                     return result_logs
                 data_filtered = propertyFilter(result_logs['entries'])
@@ -2516,8 +2516,8 @@ class LenovoRedfishClient(HttpClient):
         """
         result = {}
         try:
-            manager_url = self._find_manager_resource()
-            result = self._get_url(manager_url + '/NetworkProtocol')
+            manager_url = self.__find_manager_resource()
+            result = self.__get_url(manager_url + '/NetworkProtocol')
             if result['ret'] == False:
                 return result
             
