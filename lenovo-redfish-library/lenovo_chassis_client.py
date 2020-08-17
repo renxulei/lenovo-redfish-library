@@ -232,7 +232,7 @@ if __name__ == "__main__":
     lenovo_redfish.login()
 
     # performe management actions. get/set info.
-    #result = lenovo_redfish.get_pci_inventory()
+    result = lenovo_redfish.get_pci_inventory()
     #result = lenovo_redfish.get_nic_inventory()
     #result = lenovo_redfish.get_fan_inventory()
     #result = lenovo_redfish.get_psu_inventory()

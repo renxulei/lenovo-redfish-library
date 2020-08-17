@@ -861,7 +861,7 @@ if __name__ == "__main__":
     lenovo_redfish.login()
 
     # performe management actions. get/set info.
-    #result = lenovo_redfish.get_cpu_inventory()
+    result = lenovo_redfish.get_cpu_inventory()
     #result = lenovo_redfish.get_all_bios_attributes('pending')
     #result = lenovo_redfish.get_all_bios_attributes('current')
     #result = lenovo_redfish.get_bios_attribute('BootModes_SystemBootMode')
