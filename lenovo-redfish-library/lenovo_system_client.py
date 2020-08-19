@@ -1,6 +1,6 @@
 ###
 #
-# Lenovo Redfish examples - Add event subscriptions
+# Lenovo Redfish Client - System Client
 #
 # Copyright Notice:
 #
@@ -22,13 +22,16 @@
 import os
 import logging
 import json
+import argparse
 import traceback 
 
 from lenovo_redfish_client import LenovoRedfishClient
 from utils import *
+from utils import add_common_parameter
+from utils import parse_common_parameter
 
 class LenovoSystemClient(LenovoRedfishClient):
-    """A client for accessing lenovo system resource"""
+    """A client for managing system"""
 
     def __init__(self, ip='', username='', password='', \
                                 configfile='config.ini', \
@@ -40,14 +43,18 @@ class LenovoSystemClient(LenovoRedfishClient):
                     configfile=configfile, \
                     auth=auth)
 
-    def get_all_bios_attributes(self, bios_get='current'):
+    #############################################
+    # functions for getting information.
+    #############################################
+
+    def get_all_bios_attributes(self, type='current'):
         """Get all bios attribute
-        :params bios_get: 'current' setting or 'pending' setting(default is 'current')
-        :type bios_get: string
+        :params type: 'current' setting or 'pending' setting(default is 'current')
+        :type type: string
         :returns: returns dict of all bios attributes when succeeded or error message when failed
         """
 
-        if bios_get not in ['current', 'pending']:
+        if type not in ['current', 'pending']:
             return {'ret': False, 'msg': "Please specify parameter with 'current' or 'pending'."}
 
         result = {}
@@ -57,7 +64,7 @@ class LenovoSystemClient(LenovoRedfishClient):
             if result_bios['ret'] == False:
                 return result_bios
 
-            if bios_get == "current":
+            if type == "current":
                 # Get the bios url resource
                 return {'ret': True, 'entries': result_bios['entries']['Attributes']}
             else:
@@ -212,388 +219,7 @@ class LenovoSystemClient(LenovoRedfishClient):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
-    def get_cpu_inventory(self):
-        """Get cpu inventory
-        :returns: returns List of all cpu inventory when succeeded or error message when failed
-        """
-        result = {}
-        try:
-            # Find ComputerSystem resource's url
-            system_url = self._find_system_resource()
-            
-            # Get the Processors collection
-            result = self._get_collection(system_url + '/Processors')
-            if result['ret'] == False:
-                return result
-            
-            list_cpu_info = []
-            for member in result['entries']:
-                if member["Status"]["State"] != 'Absent':
-                    cpu_info = propertyFilter(member)
-                    list_cpu_info.append(cpu_info)
-            return {'ret': True, 'entries': list_cpu_info}
-        except Exception as e:
-            LOGGER.debug("%s" % traceback.format_exc())
-            msg = "Failed to get cpu inventory. Error message: %s" % repr(e)
-            LOGGER.error(msg)
-            return {'ret': False, 'msg': msg}
-
-    def get_memory_inventory(self, member_id=None):
-        """Get cpu inventory
-        :params member_id: Memory member id
-        :type member_id: None or String of id
-        :returns: returns List of all memory inventory when succeeded or error message when failed
-        """
-        result = {}
-        try:
-            # Find ComputerSystem resource's url
-            system_url = self._find_system_resource()
-
-            # Get the Processors collection
-            list_memory_info = []
-            result = self._get_collection(system_url + '/Memory')
-            if result['ret'] == False:
-                return result
-            
-            if member_id == None:
-                for member in result['entries']:
-                    if member["Status"]["State"] != 'Absent':
-                        list_memory_info.append(member)
-            else:
-                for member in result['entries']:
-                    if member_id == member['Id']:
-                        list_memory_info.append(member)
-                        break
-                if len(list_memory_info) == 0:
-                    return {'ret': False, 'msg': "Failed to find the memory with id %s. \
-                              Please check if the id is correct." % member_id}
-
-            # Filter property
-            entries = []
-            for member in list_memory_info:
-                memory_info = propertyFilter(member)
-                entries.append(memory_info)
-            return {'ret': True, 'entries': entries}
-        except Exception as e:
-            LOGGER.debug("%s" % traceback.format_exc())
-            msg = "Failed to get cpu inventory. Error message: %s" % repr(e)
-            LOGGER.error(msg)
-            return {'ret': False, 'msg': msg}
-
-    def get_system_ethernet_interfaces(self):
-        """Get system EthernetInterfaces
-        :returns: returns List of all system EthernetInterfaces when succeeded or error message when failed
-        """
-        result = {}
-        try:
-            # Find ComputerSystem resource's url
-            system_url = self._find_system_resource()
-
-            # Get the Processors collection
-            result = self._get_collection(system_url + '/EthernetInterfaces')
-            
-            if result['ret'] == False:
-                return result
-            
-            list_nic_info = []
-            for member in result['entries']:
-                nic_info = {}
-                for key in member.keys():
-                    if key not in common_property_excluded and 'Redfish.Deprecated' not in key:
-                        nic_info[key] = member[key]
-                list_nic_info.append(nic_info)
-            return {'ret': True, 'entries': list_nic_info}
-        except Exception as e:
-            LOGGER.debug("%s" % traceback.format_exc())
-            msg = "Failed to get system ethernet interfaces. Error message: %s" % repr(e)
-            LOGGER.error(msg)
-            return {'ret': False, 'msg': msg}
-
-    def get_system_storage(self):
-        """Get system storage resource
-        :returns: returns List of all system Storage when succeeded or error message when failed
-        """
-        result = {}
-        try:
-            # Find ComputerSystem resource's url
-            system_url = self._find_system_resource()
-
-            # Get the Processors collection
-            result = self._get_collection(system_url + '/Storage')
-            if result['ret'] == False:
-                return result
-            
-            list_storage_info = []
-            for member in result['entries']:
-                storage_info = propertyFilter(member)
-
-                if 'Drives' in member:
-                    list_drives = []
-                    for drive in member['Drives']:
-                        result_drive = self._get_url(drive['@odata.id'])
-                        if result_drive['ret'] == True:
-                            drive_info = propertyFilter(result_drive['entries'])
-                            list_drives.append(drive_info)
-                        else:
-                            return result_drive
-                    storage_info['Drives'] = list_drives
-
-                if 'Volumes' in member:
-                    result_volumes = self._get_collection(member['Volumes']['@odata.id'])
-                    list_volumes = []
-                    if result_volumes['ret'] == True:
-                        for volume in result_volumes['entries']:
-                            volume_info = propertyFilter(volume)
-                            list_volumes.append(volume_info)
-                    else:
-                        return result_volumes
-                    storage_info['Volumes'] = list_volumes
-
-                # Get storage Controller
-                if 'StorageControllers' in member:
-                    list_controller = []
-                    for controller in member['StorageControllers']:
-                        controller_info = propertyFilter(member)
-                        list_controller.append(controller_info)
-                    storage_info['StorageControllers'] = list_controller
-
-                list_storage_info.append(storage_info)
-
-            return {'ret': True, 'entries': list_storage_info}
-        except Exception as e:
-            LOGGER.debug("%s" % traceback.format_exc())
-            msg = "Failed to get system storage inventory. Error message: %s" % repr(e)
-            LOGGER.error(msg)
-            return {'ret': False, 'msg': msg}
-
-    def get_system_simple_storage(self):
-        """Get system's SimpleStorage inventory
-        :returns: returns List of all system SimpleStorage when succeeded or error message when failed
-        """
-        result = {}
-        try:
-            # Find ComputerSystem resource's url
-            system_url = self._find_system_resource()
-
-            # Get the Processors collection
-            result = self._get_collection(system_url + '/SimpleStorage')
-            
-            if result['ret'] == False:
-                return result
-            
-            list_storage_info = []
-            for member in result['entries']:
-                storage_info = propertyFilter(member)
-                list_storage_info.append(storage_info)
-            return {'ret': True, 'entries': list_storage_info}
-        except Exception as e:
-            LOGGER.debug("%s" % traceback.format_exc())
-            msg = "Failed to get system SimpleStorage. Error message: %s" % repr(e)
-            LOGGER.error(msg)
-            return {'ret': False, 'msg': msg}
-
-    def get_storage_inventory(self):
-        """Get storage inventory    
-        :returns: returns Dict of storage inventory when succeeded or error message when failed
-        """
-        result = {}
-        try:
-            manager_url = self._find_system_resource()
-            storage_info = {}
-            
-            # Get system Storage resource
-            result = self.get_system_storage()
-            if result['ret'] == True:
-                storage_info['Storage'] = result['entries']
-    
-            # GET system SimpleStorage resources
-            result = self.get_system_simple_storage()
-            if result['ret'] == True:
-                storage_info['SimpleStorage'] = result['entries']
-    
-            return {'ret': True, 'entries': storage_info}
-        except Exception as e:
-            LOGGER.debug("%s" % traceback.format_exc())
-            msg = "Failed to get storage inventory. Error message: %s" % repr(e)
-            LOGGER.error(msg)
-            return {'ret': False, 'msg': msg}
-
-    def get_system_power_state(self):
-        """Get system's power state
-        :returns: returns Dict of system power state when succeeded or error message when failed
-        """
-        result = {}
-        try:
-            system_url = self._find_system_resource()
-            result = self._get_url(system_url)
-            if result['ret'] == False:
-                return result
-            power_state = {}
-            power_state['PowerState'] = result['entries']['PowerState']
-            return {'ret': True, 'entries': power_state}
-        except Exception as e:
-            LOGGER.debug("%s" % traceback.format_exc())
-            msg = "Failed to get system power state. Error message: %s" % repr(e)
-            LOGGER.error(msg)
-            return {'ret': False, 'msg': msg}
-
-    def get_system_inventory(self):
-        """Get System inventory    
-        :returns: returns Dict of system inventory when succeeded or error message when failed
-        """
-        result = {}
-        try:
-            system_url = self._find_system_resource()
-            
-            # Get the system information
-            system_info = {}
-            result_system = self._get_url(system_url)
-            if result_system['ret'] == True:
-                system_info = propertyFilter(result_system['entries'], \
-                    common_property_excluded + ['Processors', 'Memory', \
-                    'SecureBoot', 'Storage', 'PCIeDevices', 'PCIeFunctions', \
-                    'LogServices', 'PCIeDevices@odata.count', 'PCIeFunctions@odata.count'])
-            else:
-                return result_system
-
-            # GET System EthernetInterfaces resources
-            result = self.get_system_ethernet_interfaces()
-            if result['ret'] == True:
-                system_info['EthernetInterfaces'] = result['entries']
-
-            return {'ret': True, 'entries': system_info}
-        except Exception as e:
-            LOGGER.debug("%s" % traceback.format_exc())
-            msg = "Failed to get system inventory. Error message: %s" % repr(e)
-            LOGGER.error(msg)
-            return {'ret': False, 'msg': msg}
-
-    #############################################
-    # functions for setting.
-    #############################################
-
-    def get_system_reset_types(self):
-        """Get system's reset types
-        :returns: returns Dict of system reset types when succeeded or error message when failed
-        """
-        result = {}
-        try:
-            system_url = self._find_system_resource()
-            result = self._get_url(system_url)
-            if result['ret'] == False:
-                return result
-            if '@Redfish.ActionInfo' not in result['entries']["Actions"]["#ComputerSystem.Reset"]:
-                return {'ret': False, 'msg': "Failed to get system reset types."}
-            actioninfo_url = result['entries']['Actions']['#ComputerSystem.Reset']['@Redfish.ActionInfo']
-            result = self._get_url(actioninfo_url)
-            if result['ret'] == False:
-                return result
-            if "Parameters" in result['entries']:
-                for parameter in result['entries']["Parameters"]:
-                    if ("Name" in parameter) and (parameter["Name"] == "ResetType"):
-                        reset_types = {}
-                        if "AllowableValues" in parameter:
-                            reset_types["ResetType@Redfish.AllowableValues"] = parameter["AllowableValues"]
-                            return {'ret': True, 'entries': reset_types}
-            return {'ret': False, 'msg': "Failed to get system reset types."}
-        except Exception as e:
-            LOGGER.debug("%s" % traceback.format_exc())
-            msg = "Failed to get system reset types. Error message: %s" % repr(e)
-            LOGGER.error(msg)
-            return {'ret': False, 'msg': msg}
-
-    def set_system_power_state(self, reset_type):
-        """Set system's power state, like on/off, restart.
-        :params reset_type: reset system type, for example: 'On', 'GracefulShutdown', 'ForceRestart'.
-        :type reset_type: string
-        :returns: returns the result to set system power state. 
-        """
-        result = {}
-        try:
-            system_url = self._find_system_resource()
-            result = self._get_url(system_url)
-            if result['ret'] == False:
-                return result
-            target_url = result['entries']["Actions"]["#ComputerSystem.Reset"]["target"]
-            post_body = {"ResetType": reset_type}
-            post_response = self.post(target_url, body=post_body)
-            # If Response return 200/OK, return successful , else print the response Error code
-            if post_response.status in [200, 202, 204]:
-                return {'ret': True, 'msg': "Succeed to set system '%s'." % reset_type}
-            else:
-                LOGGER.error(str(post_response))
-                return {'ret': False, 'msg': "Failed to set system '%s'. Error code is %s. Error message is %s. " % \
-                        (reset_type, post_response.status, post_response.text)}
-        except Exception as e:
-            LOGGER.debug("%s" % traceback.format_exc())
-            msg = "Failed to set system power state. Error message: %s" % repr(e)
-            LOGGER.error(msg)
-            return {'ret': False, 'msg': msg}
-
-    def set_bios_attribute(self, attribute_name, attribute_value):
-        """Set bios attribute.
-        :params attribute_name: Bios attribute name
-        :type attribute_name: string
-        :params attribute_value: new value of Bios attribute
-        :type attribute_value: string
-        :returns: returns the result to set bios attribute result
-        """
-        result = {}
-        try:
-            system_url = self._find_system_resource()
-            result = self._get_url(system_url + '/Bios')
-            if result['ret'] == False: 
-                return result
-
-            if "SettingsObject" in result['entries']['@Redfish.Settings'].keys():
-                pending_url = result['entries']['@Redfish.Settings']['SettingsObject']['@odata.id']
-            else:
-                if 'Self' in system_url:
-                    pending_url = bios_url + "/SD" # TSM
-                else:
-                    pending_url = bios_url + "/Pending" # XCC
-            result = self.get_bios_attribute_available_value(attribute_name)
-            if result['ret'] == False:
-                return result
-            
-            parameter = {}
-            attribute = result['entries']
-            if attribute['Type'] == "Integer":
-                try:
-                    attribute_value = int(attribute_value)
-                    parameter = {attribute_name: attribute_value}
-                except:
-                    result = {'ret': False, 'msg': "Please check the attribute value, this should be a number."}
-                    return result
-            elif attribute['Type'] == "Boolean":
-                if attribute_value.upper() == "TRUE":
-                    parameter = {attribute_name: True}
-                elif attribute_value.upper() == "FALSE":
-                    parameter = {attribute_name: False}
-                else:
-                    result = {'ret': False, 'msg': "Please check the attribute value, this value is 'true' or 'false'."}
-                    return result
-            else:
-                parameter = {attribute_name: attribute_value}
-
-            if parameter:
-                attribute = {"Attributes": parameter}
-            headers = {"If-Match": "*", "Content-Type": "application/json"}
-            patch_response = self.patch(pending_url, headers = headers, body=attribute)
-            if patch_response.status in [200, 204]:
-                result = {'ret': True, 'msg': "Succeed to set '%s' to '%s'."% (attribute_name, attribute_value)}
-            else:
-                LOGGER.error(str(patch_response))
-                result = {'ret': False, 'msg': "Failed to set '%s'. Error code is %s. Error message is %s. " % \
-                        (attribute_name, patch_response.status, patch_response.text)}
-            return result
-        except Exception as e:
-            LOGGER.debug("%s" % traceback.format_exc())
-            msg = "Failed to set bios attribute. Error message: %s" % repr(e)
-            LOGGER.error(msg)
-            return {'ret': False, 'msg': msg}
-
-    def get_bios_boot_order(self):
+    def get_system_boot_order(self):
         """Get system boot order.
         :returns: returns Dict of system boot order info or error message.
         """
@@ -680,7 +306,406 @@ class LenovoSystemClient(LenovoRedfishClient):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
-    def set_bios_boot_order(self, bootorder):
+    def get_cpu_inventory(self):
+        """Get cpu inventory
+        :returns: returns List of all cpu inventory when succeeded or error message when failed
+        """
+        result = {}
+        try:
+            # Find ComputerSystem resource's url
+            system_url = self._find_system_resource()
+            
+            # Get the Processors collection
+            result = self._get_collection(system_url + '/Processors')
+            if result['ret'] == False:
+                return result
+            
+            list_cpu_info = []
+            for member in result['entries']:
+                if member["Status"]["State"] != 'Absent':
+                    cpu_info = propertyFilter(member)
+                    list_cpu_info.append(cpu_info)
+            return {'ret': True, 'entries': list_cpu_info}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get cpu inventory. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def get_memory_inventory(self, id=None):
+        """Get cpu inventory
+        :params id: Memory member id
+        :type id: None or String of id
+        :returns: returns List of all memory inventory when succeeded or error message when failed
+        """
+        result = {}
+        try:
+            # Find ComputerSystem resource's url
+            system_url = self._find_system_resource()
+
+            # Get the Processors collection
+            list_memory_info = []
+            result = self._get_collection(system_url + '/Memory')
+            if result['ret'] == False:
+                return result
+            
+            if id == None:
+                for member in result['entries']:
+                    if member["Status"]["State"] != 'Absent':
+                        list_memory_info.append(member)
+            else:
+                for member in result['entries']:
+                    if id == member['Id']:
+                        list_memory_info.append(member)
+                        break
+                if len(list_memory_info) == 0:
+                    return {'ret': False, 'msg': "Failed to find the memory with id %s. \
+                              Please check if the id is correct." % id}
+
+            # Filter property
+            entries = []
+            for member in list_memory_info:
+                memory_info = propertyFilter(member)
+                entries.append(memory_info)
+            return {'ret': True, 'entries': entries}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get cpu inventory. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def get_system_ethernet_interfaces(self):
+        """Get system EthernetInterfaces
+        :returns: returns List of all system EthernetInterfaces when succeeded or error message when failed
+        """
+        result = {}
+        try:
+            # Find ComputerSystem resource's url
+            system_url = self._find_system_resource()
+
+            # Get the Processors collection
+            result = self._get_collection(system_url + '/EthernetInterfaces')
+            
+            if result['ret'] == False:
+                return result
+            
+            list_nic_info = []
+            for member in result['entries']:
+                nic_info = {}
+                for key in member.keys():
+                    if key not in common_property_excluded and 'Redfish.Deprecated' not in key:
+                        nic_info[key] = member[key]
+                list_nic_info.append(nic_info)
+            return {'ret': True, 'entries': list_nic_info}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get system ethernet interfaces. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def get_system_storage(self):
+        """Get system storage resource which are attached with storage controller.
+        :returns: returns List of all system Storage when succeeded or error message when failed
+        """
+        result = {}
+        try:
+            # Find ComputerSystem resource's url
+            system_url = self._find_system_resource()
+
+            # Get the Processors collection
+            result = self._get_collection(system_url + '/Storage')
+            if result['ret'] == False:
+                return result
+            
+            list_storage_info = []
+            for member in result['entries']:
+                storage_info = propertyFilter(member)
+
+                if 'Drives' in member:
+                    list_drives = []
+                    for drive in member['Drives']:
+                        result_drive = self._get_url(drive['@odata.id'])
+                        if result_drive['ret'] == True:
+                            drive_info = propertyFilter(result_drive['entries'])
+                            list_drives.append(drive_info)
+                        else:
+                            return result_drive
+                    storage_info['Drives'] = list_drives
+
+                if 'Volumes' in member:
+                    result_volumes = self._get_collection(member['Volumes']['@odata.id'])
+                    list_volumes = []
+                    if result_volumes['ret'] == True:
+                        for volume in result_volumes['entries']:
+                            volume_info = propertyFilter(volume)
+                            list_volumes.append(volume_info)
+                    else:
+                        return result_volumes
+                    storage_info['Volumes'] = list_volumes
+
+                # Get storage Controller
+                if 'StorageControllers' in member:
+                    list_controller = []
+                    for controller in member['StorageControllers']:
+                        controller_info = propertyFilter(member)
+                        list_controller.append(controller_info)
+                    storage_info['StorageControllers'] = list_controller
+
+                list_storage_info.append(storage_info)
+
+            return {'ret': True, 'entries': list_storage_info}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get system storage inventory. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def get_system_simple_storage(self):
+        """Get system's SimpleStorage resource which are attached to system directly.
+        :returns: returns List of all system SimpleStorage when succeeded or error message when failed
+        """
+        result = {}
+        try:
+            # Find ComputerSystem resource's url
+            system_url = self._find_system_resource()
+
+            # Get the Processors collection
+            result = self._get_collection(system_url + '/SimpleStorage')
+            
+            if result['ret'] == False:
+                return result
+            
+            list_storage_info = []
+            for member in result['entries']:
+                storage_info = propertyFilter(member)
+                list_storage_info.append(storage_info)
+            return {'ret': True, 'entries': list_storage_info}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get system SimpleStorage. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def get_storage_inventory(self):
+        """Get storage inventory
+        :returns: returns Dict of storage inventory when succeeded or error message when failed
+        """
+        result = {}
+        try:
+            manager_url = self._find_system_resource()
+            storage_info = {}
+            
+            # Get system Storage resource
+            result = self.get_system_storage()
+            if result['ret'] == True:
+                storage_info['Storage'] = result['entries']
+    
+            # GET system SimpleStorage resources
+            result = self.get_system_simple_storage()
+            if result['ret'] == True:
+                storage_info['SimpleStorage'] = result['entries']
+    
+            return {'ret': True, 'entries': storage_info}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get storage inventory. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def get_system_power_state(self):
+        """Get system's power state
+        :returns: returns Dict of system power state when succeeded or error message when failed
+        """
+        result = {}
+        try:
+            system_url = self._find_system_resource()
+            result = self._get_url(system_url)
+            if result['ret'] == False:
+                return result
+            power_state = {}
+            power_state['PowerState'] = result['entries']['PowerState']
+            return {'ret': True, 'entries': power_state}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get system power state. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def get_system_inventory(self):
+        """Get System inventory    
+        :returns: returns Dict of system inventory when succeeded or error message when failed
+        """
+        result = {}
+        try:
+            system_url = self._find_system_resource()
+            
+            # Get the system information
+            system_info = {}
+            result_system = self._get_url(system_url)
+            if result_system['ret'] == True:
+                system_info = propertyFilter(result_system['entries'], \
+                    common_property_excluded + ['Processors', 'Memory', \
+                    'SecureBoot', 'Storage', 'PCIeDevices', 'PCIeFunctions', \
+                    'LogServices', 'PCIeDevices@odata.count', 'PCIeFunctions@odata.count'])
+            else:
+                return result_system
+
+            # GET System EthernetInterfaces resources
+            result = self.get_system_ethernet_interfaces()
+            if result['ret'] == True:
+                system_info['EthernetInterfaces'] = result['entries']
+
+            return {'ret': True, 'entries': system_info}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get system inventory. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def get_system_log(self, type='system'):
+        """Get system event logs
+        :params type: 'system', 'manager' or 'chassis'
+        :type type: string
+        :returns: returns List of system event logs
+        """
+        result = {}
+        try:
+            if type not in ['system', 'manager', 'chassis']:
+                result = {'ret': False, 'msg': "Please specify type in ['system', 'manager', 'chassis']."}
+                return result
+
+            if type == "system":
+                resource_url = self._find_system_resource()
+            elif type == "manager":
+                resource_url = self._find_manager_resource()
+            else:
+                resource_url = self._find_chassis_resource()
+            log_service_url = resource_url + '/LogServices'
+            result = self._get_url(resource_url)
+            if result['ret'] == False:
+                return result
+
+            log_service_url = result['entries']['LogServices']['@odata.id']
+            result = self._get_collection(log_service_url)
+            if result['ret'] == False:
+                return result
+            
+            log_details = []
+            for member in result['entries']:
+                id = member['Id']
+                entries_url = member['Entries']['@odata.id']
+                result_logs = self._get_collection(entries_url)
+                if result_logs['ret'] == False:
+                    return result_logs
+                data_filtered = propertyFilter(result_logs['entries'])
+                log = {'Id': id, 'Entries': data_filtered}
+                log_details.append(log)
+            result = {'ret': True, 'entries': log_details}
+            return result
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get system storage inventory. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def get_system_reset_types(self):
+        """Get system's reset types
+        :returns: returns Dict of system reset types when succeeded or error message when failed
+        """
+        result = {}
+        try:
+            system_url = self._find_system_resource()
+            result = self._get_url(system_url)
+            if result['ret'] == False:
+                return result
+            if '@Redfish.ActionInfo' not in result['entries']["Actions"]["#ComputerSystem.Reset"]:
+                return {'ret': False, 'msg': "Failed to get system reset types."}
+            actioninfo_url = result['entries']['Actions']['#ComputerSystem.Reset']['@Redfish.ActionInfo']
+            result = self._get_url(actioninfo_url)
+            if result['ret'] == False:
+                return result
+            if "Parameters" in result['entries']:
+                for parameter in result['entries']["Parameters"]:
+                    if ("Name" in parameter) and (parameter["Name"] == "ResetType"):
+                        reset_types = {}
+                        if "AllowableValues" in parameter:
+                            reset_types["ResetType@Redfish.AllowableValues"] = parameter["AllowableValues"]
+                            return {'ret': True, 'entries': reset_types}
+            return {'ret': False, 'msg': "Failed to get system reset types."}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get system reset types. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    #############################################
+    # functions for setting information.
+    #############################################
+
+    def set_bios_attribute(self, attribute_name, attribute_value):
+        """Set bios attribute.
+        :params attribute_name: Bios attribute name
+        :type attribute_name: string
+        :params attribute_value: new value of Bios attribute
+        :type attribute_value: string
+        :returns: returns the result to set bios attribute result
+        """
+        result = {}
+        try:
+            system_url = self._find_system_resource()
+            result = self._get_url(system_url + '/Bios')
+            if result['ret'] == False: 
+                return result
+
+            if "SettingsObject" in result['entries']['@Redfish.Settings'].keys():
+                pending_url = result['entries']['@Redfish.Settings']['SettingsObject']['@odata.id']
+            else:
+                if 'Self' in system_url:
+                    pending_url = bios_url + "/SD" # TSM
+                else:
+                    pending_url = bios_url + "/Pending" # XCC
+            result = self.get_bios_attribute_available_value(attribute_name)
+            if result['ret'] == False:
+                return result
+            
+            parameter = {}
+            attribute = result['entries']
+            if attribute['Type'] == "Integer":
+                try:
+                    attribute_value = int(attribute_value)
+                    parameter = {attribute_name: attribute_value}
+                except:
+                    result = {'ret': False, 'msg': "Please check the attribute value, this should be a number."}
+                    return result
+            elif attribute['Type'] == "Boolean":
+                if attribute_value.upper() == "TRUE":
+                    parameter = {attribute_name: True}
+                elif attribute_value.upper() == "FALSE":
+                    parameter = {attribute_name: False}
+                else:
+                    result = {'ret': False, 'msg': "Please check the attribute value, this value is 'true' or 'false'."}
+                    return result
+            else:
+                parameter = {attribute_name: attribute_value}
+
+            if parameter:
+                attribute = {"Attributes": parameter}
+            headers = {"If-Match": "*", "Content-Type": "application/json"}
+            patch_response = self.patch(pending_url, headers = headers, body=attribute)
+            if patch_response.status in [200, 204]:
+                result = {'ret': True, 'msg': "Succeed to set '%s' to '%s'."% (attribute_name, attribute_value)}
+            else:
+                LOGGER.error(str(patch_response))
+                result = {'ret': False, 'msg': "Failed to set '%s'. Error code is %s. Error message is %s. " % \
+                        (attribute_name, patch_response.status, patch_response.text)}
+            return result
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to set bios attribute. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def set_system_boot_order(self, bootorder):
         """Set system boot order.
         :params bootorder: Specify the bios boot order list, like: ["ubuntu", "CD/DVD Rom", "Hard Disk", "USB Storage"]
         :type bootorder: list
@@ -804,93 +829,290 @@ class LenovoSystemClient(LenovoRedfishClient):
         result = self.set_bios_attribute(attribute_name, bootmode)
         return result
 
-    def get_system_log(self, type='system'):
-        """Get system event logs
-        :params type: 'system', 'manager' or 'chassis'
-        :type type: string
-        :returns: returns List of system event logs
+    def set_system_power_state(self, reset_type):
+        """Set system's power state, like on/off, restart.
+        :params reset_type: reset system type, for example: 'On', 'GracefulShutdown', 'ForceRestart'.
+        :type reset_type: string
+        :returns: returns the result to set system power state. 
         """
         result = {}
         try:
-            if type not in ['system', 'manager', 'chassis']:
-                result = {'ret': False, 'msg': "Please specify type in ['system', 'manager', 'chassis']."}
+            system_url = self._find_system_resource()
+            result = self._get_url(system_url)
+            if result['ret'] == False:
                 return result
-
-            if type == "system":
-                resource_url = self._find_system_resource()
-            elif type == "manager":
-                resource_url = self._find_manager_resource()
+            target_url = result['entries']["Actions"]["#ComputerSystem.Reset"]["target"]
+            post_body = {"ResetType": reset_type}
+            post_response = self.post(target_url, body=post_body)
+            # If Response return 200/OK, return successful , else print the response Error code
+            if post_response.status in [200, 202, 204]:
+                return {'ret': True, 'msg': "Succeed to set system '%s'." % reset_type}
             else:
-                resource_url = self._find_chassis_resource()
-            log_service_url = resource_url + '/LogServices'
-            result = self._get_url(resource_url)
-            if result['ret'] == False:
-                return result
-
-            log_service_url = result['entries']['LogServices']['@odata.id']
-            result = self._get_collection(log_service_url)
-            if result['ret'] == False:
-                return result
-            
-            log_details = []
-            for member in result['entries']:
-                id = member['Id']
-                entries_url = member['Entries']['@odata.id']
-                result_logs = self._get_collection(entries_url)
-                if result_logs['ret'] == False:
-                    return result_logs
-                data_filtered = propertyFilter(result_logs['entries'])
-                log = {'Id': id, 'Entries': data_filtered}
-                log_details.append(log)
-            result = {'ret': True, 'entries': log_details}
-            return result
+                LOGGER.error(str(post_response))
+                return {'ret': False, 'msg': "Failed to set system '%s'. Error code is %s. Error message is %s. " % \
+                        (reset_type, post_response.status, post_response.text)}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            msg = "Failed to get system storage inventory. Error message: %s" % repr(e)
+            msg = "Failed to set system power state. Error message: %s" % repr(e)
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
 
-# TBU
-if __name__ == "__main__":
-    # initiate LenovoRedfishClient object, specify ip/user/password/authentication.
-    #lenovo_redfish = LenovoSystemClient('10.245.39.153', 'renxulei', 'PASSW0RD12q', auth='session')
-    lenovo_redfish = LenovoSystemClient('10.245.39.251', 'renxulei', 'PASSW0RD12q', auth='session')
+cmd_list = {
+        "get_all_bios_attributes": {
+                'help': "Get all attributes of bios", 
+                'args': [{'argname': "--type", 'type': str, 'nargs': "?", 'required': False, 'help': "'current' or 'pending', default is 'current'"}]
+        },
+        "get_bios_attribute": {
+                'help': "Get attibute value of one bios's attribute",
+                'args': [{'argname': "--attribute_name", 'type': str, 'nargs': "?", 'required': True, 'help': "Attribute name of bios"}]
+        },
+        "get_bios_attribute_metadata": {
+                'help': "Get the registry info of bios attributes",
+                'args': []
+        },
+        "get_bios_attribute_available_value": {
+                'help': "Get available value of bios attirbute",
+                'args': [{'argname': "--attribute_name", 'type': str, 'nargs': "?", 'required': False, 'help': "Attribute name of bios, default is 'all'"}]
+        },
+        "get_bios_bootmode": {
+                'help': "Get bios's boot mode",
+                'args': []
+        },
+        "get_system_boot_order": {
+                'help': "Get system's boot order",
+                'args': []
+        },
+        "get_cpu_inventory": {
+                'help': "Get system's avaliable cpu inventory",
+                'args': []
+        },
+        "get_memory_inventory": {
+                'help': "Get system's avaliable memory inventory",
+                'args': [{'argname': "--id", 'type': str, 'nargs': "?", 'required': False, 'help': "Memory id, default is none"}]
+        },
+        "get_system_ethernet_interfaces": {
+                'help': "Get system's ethernet interfaces",
+                'args': []
+        },
+        "get_system_storage": {
+                'help': "Get system's storage, which are attached with storage controller",
+                'args': []
+        },
+        "get_system_simple_storage": {
+                'help': "Get system's simple storage, which are attached with system directly",
+                'args': []
+        },
+        "get_storage_inventory": {
+                'help': "Get all storages' inventory",
+                'args': []
+        },
+        "get_system_power_state": {
+                'help': "Get system's power state",
+                'args': []
+        },
+        "get_system_inventory": {
+                'help': "Get system's inventory",
+                'args': []
+        },
+        "get_system_log": {
+                'help': "Get event logs of system, manager or chassis",
+                'args': [{'argname': "--type", 'type': str, 'nargs': "?", 'required': False, 'help': "Log of 'system','manager' or 'chassis', default is 'system'"}]
+        },       
+        "get_system_reset_types": {
+                'help': "Get system's available reset actions.",
+                'args': []
+        },
+        "set_bios_attribute": {
+                'help': "Set one attribute of bios",
+                'args': [{'argname': "--attribute_name", 'type': str, 'nargs': "?", 'required': True, 'help': "Attribute name of bios"},
+                         {'argname': "--attribute_value", 'type': str, 'nargs': "?", 'required': True, 'help': "New value of this attribute"}]
+        },
+        "set_system_boot_order": {
+                'help': "Set system's boot order",
+                'args': [{'argname': "--bootorder", 'type': str, 'nargs': "*", 'required': True, 'help': "Bios boot order list, like: 'CD/DVD Rom' 'Hard Disk'"}]
+        },
+        "set_bios_bootmode": {
+                'help': "Set system's boot mode",
+                'args': [{'argname': "--bootmode", 'type': str, 'nargs': "?", 'required': True, 'help': "System's boot mode. please use 'get_bios_bootmode' to list available boot mode."}]
+        },
+        "set_system_power_state": {
+                'help': "Set system's power state",
+                'args': [{'argname': "--reset_type", 'type': str, 'nargs': "?", 'required': True, 'help': "Reset action, like 'GraceRestart', 'ForceRestart'. please use 'get_system_reset_types' to get available reset types."}]
+        }
+}
 
-    # setup connection with bmc.
-    lenovo_redfish.login()
+def add_sub_parameter(argget):
+    subcommand_parsers = argget.add_subparsers(dest='subcommand_name', help='all subcommands')
+    
+    for func in cmd_list.keys():
+        parser_function = subcommand_parsers.add_parser(func, help=cmd_list[func]['help'])
+        for arg in cmd_list[func]['args']:
+            parser_function.add_argument(arg['argname'], type=arg['type'], nargs=arg['nargs'], required=arg['required'], help=arg['help'])
 
-    # performe management actions. get/set info.
-    result = lenovo_redfish.get_cpu_inventory()
-    #result = lenovo_redfish.get_all_bios_attributes('pending')
-    #result = lenovo_redfish.get_all_bios_attributes('current')
-    #result = lenovo_redfish.get_bios_attribute('BootModes_SystemBootMode')
-    #result = lenovo_redfish.get_bios_attribute_metadata()
-    #result = lenovo_redfish.get_bios_bootmode()
-    #result = lenovo_redfish.get_memory_inventory()
-    #result = lenovo_redfish.get_system_ethernet_interfaces()
-    #result = lenovo_redfish.get_system_inventory()
-    #result = lenovo_redfish.get_system_storage()
-    #result = lenovo_redfish.get_storage_inventory()
-    #result = lenovo_redfish.get_system_power_state()
-    #result = lenovo_redfish.set_system_power_state('On')
-    #result = lenovo_redfish.get_system_reset_types()
-    #result = lenovo_redfish.get_bios_attribute_available_value('BootModes_SystemBootMode')
-    #result = lenovo_redfish.get_bios_attribute_available_value('Q00001_Boot_Mode')
-    #result = lenovo_redfish.get_bios_attribute_available_value('abcd')
-    #result = lenovo_redfish.set_bios_attribute('OperatingModes_ChooseOperatingMode', 'MaximumPerformance')
-    #result = lenovo_redfish.set_bios_bootmode('UEFIMode')
-    #bootorder = ["ubuntu", "CD/DVD Rom", "Hard Disk", "USB Storage"]
-    #bootorder = ['Hard Drive', 'CD/DVD Drive', 'ubuntu', 'Windows Boot Manager', 'UEFI: PXE IP4 Mellanox Network Adapter']
-    #result = lenovo_redfish.set_bios_boot_order(bootorder)
-    #result = lenovo_redfish.get_bios_boot_order()
-    #result = lenovo_redfish.get_system_log()
+def parse_sub_parameter(argget):
+    """ return dict of parameter info"""
+    args = argget.parse_args()
 
+    parameter_info = {}
+    if args.subcommand_name not in cmd_list.keys():
+        result = {'ret': False, 'msg': "Subcommand is not correct."}
+        return result
+    else:
+        parameter_info["subcommand"] = args.subcommand_name
 
-    # after completed management action, you must logout to clear session. 
-    lenovo_redfish.logout()
+    cmd = args.subcommand_name
+    if cmd == 'get_all_bios_attributes':
+        parameter_info["type"] = 'current'
+        if args.type:
+            parameter_info["type"] = args.type
+    elif cmd == 'get_bios_attribute':
+        if args.attribute_name:
+            parameter_info["attribute_name"] = args.attribute_name
+    elif cmd == 'get_bios_attribute_metadata':
+        pass
+    elif cmd == 'get_bios_attribute_available_value':
+        parameter_info["attribute_name"] = 'all'
+        if args.attribute_name:
+            parameter_info["attribute_name"] = args.attribute_name
+    elif cmd == 'get_bios_bootmode':
+        pass
+    elif cmd == 'get_system_boot_order':
+        pass
+    elif cmd == 'get_cpu_inventory':
+        pass
+    elif cmd == 'get_memory_inventory':
+        parameter_info["id"] = None
+        if args.id:
+            parameter_info["id"] = args.id
+    elif cmd == 'get_system_ethernet_interfaces':
+        pass
+    elif cmd == 'get_system_storage':
+        pass
+    elif cmd == 'get_system_simple_storage':
+        pass
+    elif cmd == 'get_storage_inventory':
+        pass
+    elif cmd == 'get_system_power_state':
+        pass
+    elif cmd == 'get_system_inventory':
+        pass
+    elif cmd == 'get_system_log':
+        parameter_info["type"] = 'system'
+        if args.type:
+            parameter_info["type"] = args.type
+    elif cmd == 'get_system_reset_types':
+        pass
+    elif cmd == 'set_bios_attribute':
+        if args.attribute_name:
+            parameter_info["attribute_name"] = args.attribute_name
+        if args.attribute_value:
+            parameter_info["attribute_value"] = args.attribute_value
+    elif cmd == 'set_system_boot_order':
+        if args.bootorder:
+            parameter_info["bootorder"] = args.bootorder
+    elif cmd == 'set_bios_bootmode':
+        if args.bootmode:
+            parameter_info["bootmode"] = args.bootmode
+    elif cmd == 'set_system_power_state':
+        if args.reset_type:
+            parameter_info["reset_type"] = args.reset_type
+    else:
+        pass
 
+    result = {'ret': True, 'entries': parameter_info}
+    return result
+
+def run_subcommand(parameter_info):
+    """ return result of running subcommand """
+
+    system_client = LenovoSystemClient(ip=parameter_info['ip'], \
+                                       username=parameter_info['user'], \
+                                       password=parameter_info['password'], \
+                                       configfile=parameter_info['config'], \
+                                       auth=parameter_info['auth'])
+    system_client.login()
+
+    result = {}
+    cmd = parameter_info["subcommand"]
+    if cmd == 'get_all_bios_attributes':
+        result = system_client.get_all_bios_attributes(parameter_info["type"])
+    elif cmd == 'get_bios_attribute':
+        result = system_client.get_bios_attribute(parameter_info["attribute_name"])
+    elif cmd == 'get_bios_attribute_metadata':
+        result = system_client.get_bios_attribute_metadata()
+    elif cmd == 'get_bios_attribute_available_value':
+        result = system_client.get_bios_attribute_available_value(parameter_info["attribute_name"])
+    elif cmd == 'get_bios_bootmode':
+        result = system_client.get_bios_bootmode()
+    elif cmd == 'get_system_boot_order':
+        result = system_client.get_system_boot_order()
+    elif cmd == 'get_cpu_inventory':
+        result = system_client.get_cpu_inventory()
+    elif cmd == 'get_memory_inventory':
+        result = system_client.get_memory_inventory(parameter_info["id"])
+    elif cmd == 'get_system_ethernet_interfaces':
+        result = system_client.get_system_ethernet_interfaces()
+    elif cmd == 'get_system_storage':
+        result = system_client.get_system_storage()
+    elif cmd == 'get_system_simple_storage':
+        result = system_client.get_system_simple_storage()
+    elif cmd == 'get_storage_inventory':
+        result = system_client.get_storage_inventory()
+    elif cmd == 'get_system_power_state':
+        result = system_client.get_system_power_state()
+    elif cmd == 'get_system_inventory':
+        result = system_client.get_system_inventory()
+    elif cmd == 'get_system_log':
+        result = system_client.get_system_log(parameter_info["type"])
+    elif cmd == 'get_system_reset_types':
+        result = system_client.get_system_reset_types()
+    elif cmd == 'set_bios_attribute':
+        result = system_client.set_bios_attribute(parameter_info["attribute_name"], parameter_info["attribute_value"])
+    elif cmd == 'set_system_boot_order':
+        result = system_client.set_system_boot_order(parameter_info["bootorder"])
+    elif cmd == 'set_bios_bootmode':
+        result = system_client.set_bios_bootmode(parameter_info["bootmode"])
+    elif cmd == 'set_system_power_state':
+        result = system_client.set_system_power_state(parameter_info["reset_type"])
+    else:
+        result = {'ret': False, 'msg': "Subcommand is not supported."}
+    
+    system_client.logout()
+    return result
+
+def usage():
+    print("  Subcommands:")
+    for cmd in cmd_list.keys():
+        print("    %-42s Help:  %-120s" % (cmd, cmd_list[cmd]['help']))
+        for arg in cmd_list[cmd]['args']:
+            print("                %-30s Help:  %-120s" % (arg['argname'], arg['help']))
+    print('')
+
+def main(argv):
+    """Lenovo system client's main"""
+
+    argget = argparse.ArgumentParser(description="Lenovo Redfish Tool - System Client")
+    add_common_parameter(argget)
+    add_sub_parameter(argget)
+
+    # Parse the parameters
+    result_common = parse_common_parameter(argget)
+    result = parse_sub_parameter(argget)
+    if result['ret'] == False:
+        print(result['msg'])
+        usage()
+        return
+    result['entries'].update(result_common['entries'])
+    parameter_info = result['entries']
+
+    result = run_subcommand(parameter_info)
     if 'msg' in result:
         print(result['msg'])
     if 'entries' in result:
         print(json.dumps(result['entries'], sort_keys=True, indent=2))
+
+
+if __name__ == "__main__":
+
+    main(sys.argv)

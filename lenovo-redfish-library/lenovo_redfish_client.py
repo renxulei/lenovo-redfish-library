@@ -1,6 +1,6 @@
 ###
 #
-# Lenovo Redfish examples - Add event subscriptions
+# Lenovo Redfish examples - Lenovo Redfish Client
 #
 # Copyright Notice:
 #
@@ -83,13 +83,13 @@ class LenovoRedfishClient(HttpClient):
             result = read_config(configfile)
             
             if result['ret'] == True:
-                if self._ip == '':
+                if self._ip == '' or self._ip == None:
                     self._ip = result['entries']['bmcip']
-                if self._user == '':
+                if self._user == '' or self._user == None:
                     self._user = result['entries']['bmcusername']
-                if self._password == '':
+                if self._password == '' or self._password == None:
                     self._password = result['entries']['bmcuserpassword']
-                if self._auth == '' and result['entries']['auth'] != '':
+                if (self._auth == '' or self._auth == None) and result['entries']['auth'] != '':
                     self._auth = result['entries']['auth']
  
                 self._systemid = result['entries']['systemid']
@@ -102,7 +102,7 @@ class LenovoRedfishClient(HttpClient):
                 self._fspassword = result['entries']['fspassword']
                 self._fsdir = result['entries']['fsdir']
 
-            if self._auth == '' or self._auth not in ['session', 'basic']:
+            if self._auth not in ['session', 'basic']:
                 self._auth = 'session'
           
             login_host = "https://" + self._ip
