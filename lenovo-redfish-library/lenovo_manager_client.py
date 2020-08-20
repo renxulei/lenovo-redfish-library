@@ -48,7 +48,7 @@ class LenovoManagerClient(LenovoRedfishClient):
     #############################################
     # functions for getting information.
     #############################################
- 
+
     def get_bmc_inventory(self):
         """Get BMC inventory    
         :returns: returns Dict of BMC inventory when succeeded or error message when failed
@@ -418,7 +418,7 @@ class LenovoManagerClient(LenovoRedfishClient):
         """enable or disable one bmc network service or change the service port numbers.      
         :params service: network service of bmc. support:["HTTPS","SSDP","SSH","SNMP","IPMI","VirtualMedia"]
         :type service: string
-        :params enabled: Disable(0) or enable(1) bmc service
+        :params enabled: disable(0) or enable(1) bmc service
         :type enabled: int
         :params port: network service's port
         :type port: int
@@ -443,7 +443,7 @@ class LenovoManagerClient(LenovoRedfishClient):
             
             if service in ["IPMI", "SSDP", "DHCPv6", "NTP"]:
                 if enabled == None:
-                    return {'ret': False, 'msg': "Please specify enable parameter."}
+                    return {'ret': False, 'msg': "Please specify 'enabled' parameter."}
                 body = {service:{"ProtocolEnabled": bool(int(enabled))}}
             elif service in ["SSH", "SNMP"]:
                 if enabled == None or port == None: 
@@ -684,7 +684,7 @@ class LenovoManagerClient(LenovoRedfishClient):
                 if fsport == None:
                     fsport = ''
                 else:
-                    fsport = ':' + fsport
+                    fsport = '%s' % fsport
                 fsdir = "/" + fsdir.strip("/")
                 protocol = fsprotocol.lower()
                 
@@ -768,6 +768,11 @@ class LenovoManagerClient(LenovoRedfishClient):
                 response = self.patch(target_vm["@odata.id"], body=body)
                 if response.status in [200,204]:
                     result = {'ret': True, 'msg': "Succeed to unmount image '%s'." % image}
+                    return result
+                else:
+                    result = {'ret': False, 'msg': "Failed to unmount the image '%s'. Error code is %s. Error message is %s. " % \
+                              (image, response.status, response.text)}
+                    LOGGER.error(result['msg'])
                     return result
 
             if bmc_type == 'TSM':
@@ -1229,7 +1234,7 @@ def parse_sub_parameter(argget):
         if args.service:
             parameter_info["service"] = args.service
         parameter_info["enabled"] = None
-        if args.enabled:
+        if args.enabled != None:
             parameter_info["enabled"] = args.enabled
         parameter_info["port"] = None
         if args.port:
@@ -1273,10 +1278,10 @@ def parse_sub_parameter(argget):
         if args.fsdir:
             parameter_info["fsdir"] = args.fsdir
         parameter_info["inserted"] = 1
-        if args.inserted:
+        if args.inserted != None:
             parameter_info["inserted"] = args.inserted
         parameter_info["write_protected"] = 1
-        if args.write_protected:
+        if args.write_protected != None:
             parameter_info["write_protected"] = args.write_protected
     elif cmd == 'lenovo_umount_virtual_media':
         if args.image:
@@ -1321,7 +1326,7 @@ def parse_sub_parameter(argget):
         if args.ntp_server:
             parameter_info["ntp_server"] = args.ntp_server
         parameter_info["protocol_enabled"] = 1
-        if args.protocol_enabled:
+        if args.protocol_enabled != None:
             parameter_info["protocol_enabled"] = args.protocol_enabled
     else:
         pass
@@ -1332,55 +1337,64 @@ def parse_sub_parameter(argget):
 def run_subcommand(parameter_info):
     """ return result of running subcommand """
 
-    system_client = LenovoManagerClient(ip=parameter_info['ip'], \
-                                       username=parameter_info['user'], \
-                                       password=parameter_info['password'], \
-                                       configfile=parameter_info['config'], \
-                                       auth=parameter_info['auth'])
-    system_client.login()
+    client = LenovoManagerClient(ip=parameter_info['ip'], \
+                                 username=parameter_info['user'], \
+                                 password=parameter_info['password'], \
+                                 configfile=parameter_info['config'], \
+                                 auth=parameter_info['auth'])
+    try:
+        client.login()
+    except Exception as e:
+        LOGGER.debug("%s" % traceback.format_exc())
+        msg = "Failed to login. Error message: %s" % (repr(e))
+        LOGGER.error(msg)
+        LOGGER.debug(parameter_info)
+        return {'ret': False, 'msg': msg}
 
     result = {}
     cmd = parameter_info["subcommand"]
     if cmd == 'get_bmc_inventory':
-        result = system_client.get_bmc_inventory()
+        result = client.get_bmc_inventory()
     elif cmd == 'get_bmc_networkprotocol':
-        result = system_client.get_bmc_networkprotocol()
+        result = client.get_bmc_networkprotocol()
     elif cmd == 'get_bmc_serialinterfaces':
-        result = system_client.get_bmc_serialinterfaces()
+        result = client.get_bmc_serialinterfaces()
     elif cmd == 'get_bmc_ethernet_interfaces':
-        result = system_client.get_bmc_ethernet_interfaces()
+        result = client.get_bmc_ethernet_interfaces()
     elif cmd == 'get_bmc_hostinterfaces':
-        result = system_client.get_bmc_hostinterfaces()
+        result = client.get_bmc_hostinterfaces()
     elif cmd == 'get_bmc_ntp':
-        result = system_client.get_bmc_ntp()
+        result = client.get_bmc_ntp()
     elif cmd == 'lenovo_get_bmc_users':
-        result = system_client.lenovo_get_bmc_users()
+        result = client.lenovo_get_bmc_users()
     elif cmd == 'get_bmc_virtual_media':
-        result = system_client.get_bmc_virtual_media()
+        result = client.get_bmc_virtual_media()
     elif cmd == 'lenovo_create_bmc_user':
-        result = system_client.lenovo_create_bmc_user(parameter_info["username"], parameter_info["password"], parameter_info["authority"])
+        result = client.lenovo_create_bmc_user(parameter_info["username"], parameter_info["password"], parameter_info["authority"])
     elif cmd == 'lenovo_delete_bmc_user':
-        result = system_client.lenovo_delete_bmc_user(parameter_info["username"])
+        result = client.lenovo_delete_bmc_user(parameter_info["username"])
     elif cmd == 'set_bmc_networkprotocol':
-        result = system_client.set_bmc_networkprotocol(parameter_info["service"], parameter_info["enabled"], parameter_info["port"])
+        result = client.set_bmc_networkprotocol(parameter_info["service"], parameter_info["enabled"], parameter_info["port"])
     elif cmd == 'lenovo_export_ffdc':
-        result = system_client.lenovo_export_ffdc(parameter_info["data_type"], parameter_info["fsprotocol"], parameter_info["fsip"], parameter_info["fsport"], parameter_info["fsdir"], parameter_info["fsusername"], parameter_info["fspassword"])
+        result = client.lenovo_export_ffdc(parameter_info["data_type"], parameter_info["fsprotocol"], parameter_info["fsip"], parameter_info["fsport"], parameter_info["fsdir"], parameter_info["fsusername"], parameter_info["fspassword"])
     elif cmd == 'lenovo_mount_virtual_media':
-        result = system_client.lenovo_mount_virtual_media(parameter_info["image"], parameter_info["fsprotocol"], parameter_info["fsip"], parameter_info["fsdir"], parameter_info["fsport"], parameter_info["inserted"], parameter_info["write_protected"])
+        # Change to 'basic' session. If use 'session' connection, once logout, virtual media will be ejected automatically.
+        client.login(auth='basic')
+        result = client.lenovo_mount_virtual_media(parameter_info["image"], parameter_info["fsprotocol"], parameter_info["fsip"], parameter_info["fsdir"], parameter_info["fsport"], parameter_info["inserted"], parameter_info["write_protected"])
     elif cmd == 'lenovo_umount_virtual_media':
-        result = system_client.lenovo_umount_virtual_media(parameter_info["image"])
+        result = client.lenovo_umount_virtual_media(parameter_info["image"])
     elif cmd == 'lenovo_bmc_config_backup':
-        result = system_client.lenovo_bmc_config_backup(parameter_info["backup_password"], parameter_info["backup_file"], parameter_info["httpip"], parameter_info["httpport"], parameter_info["httpdir"])
+        result = client.lenovo_bmc_config_backup(parameter_info["backup_password"], parameter_info["backup_file"], parameter_info["httpip"], parameter_info["httpport"], parameter_info["httpdir"])
     elif cmd == 'lenovo_bmc_config_restore':
-        result = system_client.lenovo_bmc_config_restore(parameter_info["backup_password"], parameter_info["backup_file"], parameter_info["httpip"], parameter_info["httpport"], parameter_info["httpdir"])
+        result = client.lenovo_bmc_config_restore(parameter_info["backup_password"], parameter_info["backup_file"], parameter_info["httpip"], parameter_info["httpport"], parameter_info["httpdir"])
     elif cmd == 'reset_bmc':
-        result = system_client.reset_bmc(parameter_info["reset_type"])
+        result = client.reset_bmc(parameter_info["reset_type"])
     elif cmd == 'set_bmc_ntp':
-        result = system_client.set_bmc_ntp(parameter_info["ntp_server"], parameter_info["protocol_enabled"])
+        result = client.set_bmc_ntp(parameter_info["ntp_server"], parameter_info["protocol_enabled"])
     else:
         result = {'ret': False, 'msg': "Subcommand is not supported."}
     
-    system_client.logout()
+    client.logout()
     return result
 
 def usage():
@@ -1420,31 +1434,9 @@ if __name__ == "__main__":
     main(sys.argv)
 
     # performe management actions. get/set info.
-    #result = lenovo_redfish.get_bmc_inventory()
-    #result = lenovo_redfish.get_bmc_ntp()
-    #result = lenovo_redfish.get_bmc_serialinterfaces()
-    #result = lenovo_redfish.get_bmc_ethernet_interfaces()
-    #result = lenovo_redfish.get_bmc_virtual_media()
-    #result = lenovo_redfish.get_bmc_hostinterfaces()
-    #result = lenovo_redfish.lenovo_get_bmc_users()
-    #result = lenovo_redfish.lenovo_create_bmc_user('abcd','PASSW0RD=0',['Supervisor'])
-    #result = lenovo_redfish.lenovo_delete_bmc_user('abcd')
     #result = lenovo_redfish.set_bmc_networkprotocol('DHCPv6', 0)
-    #result = lenovo_redfish.get_bmc_networkprotocol()
-    #result = lenovo_redfish.get_virtual_media()
-    #result = lenovo_redfish.reset_bmc()
     #ntp_server_list = ['2.2.2.2','3.3.3.3']
     #result = lenovo_redfish.set_bmc_ntp(ntp_server_list, 0)
-    #result = lenovo_redfish.get_bmc_ntp()
-
-    # XCC:
-    #result = lenovo_redfish.lenovo_export_ffdc()
-    #result = lenovo_redfish.lenovo_export_ffdc(fsdir='/home/sftp_root/upload', fsprotocol='SFTP', fsip='10.245.100.159', fsusername='mysftp', fspassword='wlylenovo')
-    #result = lenovo_redfish.lenovo_mount_virtual_media(image='bios.iso', fsdir='/home/nfs', fsprotocol='NFS', fsip='10.245.100.159')
-    #result = lenovo_redfish.lenovo_mount_virtual_media(image='efiboot.img', fsdir='/upload', fsprotocol='HTTP', fsip='10.103.62.175', fsport='8080')
-    #result = lenovo_redfish.lenovo_umount_virtual_media('bios.iso')
-    #result = lenovo_redfish.lenovo_bmc_config_backup(backup_password='Aa1234567')
-    #result = lenovo_redfish.lenovo_bmc_config_restore(backup_password='Aa1234567', backup_file='.\\aaaaaaaa.json')
 
     # AMD
     #result = lenovo_redfish.lenovo_export_ffdc(fsdir='/upload', fsprotocol='HTTP', fsip='10.103.62.175')

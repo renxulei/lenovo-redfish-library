@@ -983,7 +983,7 @@ def parse_sub_parameter(argget):
         pass
     elif cmd == 'get_memory_inventory':
         parameter_info["id"] = None
-        if args.id:
+        if args.id != None:
             parameter_info["id"] = args.id
     elif cmd == 'get_system_ethernet_interfaces':
         pass
@@ -1006,7 +1006,7 @@ def parse_sub_parameter(argget):
     elif cmd == 'set_bios_attribute':
         if args.attribute_name:
             parameter_info["attribute_name"] = args.attribute_name
-        if args.attribute_value:
+        if args.attribute_value != None:
             parameter_info["attribute_value"] = args.attribute_value
     elif cmd == 'set_system_boot_order':
         if args.bootorder:
@@ -1026,59 +1026,66 @@ def parse_sub_parameter(argget):
 def run_subcommand(parameter_info):
     """ return result of running subcommand """
 
-    system_client = LenovoSystemClient(ip=parameter_info['ip'], \
-                                       username=parameter_info['user'], \
-                                       password=parameter_info['password'], \
-                                       configfile=parameter_info['config'], \
-                                       auth=parameter_info['auth'])
-    system_client.login()
+    client = LenovoSystemClient(ip=parameter_info['ip'], \
+                                username=parameter_info['user'], \
+                                password=parameter_info['password'], \
+                                configfile=parameter_info['config'], \
+                                auth=parameter_info['auth'])
+    try:
+        client.login()
+    except Exception as e:
+        LOGGER.debug("%s" % traceback.format_exc())
+        msg = "Failed to login. Error message: %s" % (repr(e))
+        LOGGER.error(msg)
+        LOGGER.debug(parameter_info)
+        return {'ret': False, 'msg': msg}
 
     result = {}
     cmd = parameter_info["subcommand"]
     if cmd == 'get_all_bios_attributes':
-        result = system_client.get_all_bios_attributes(parameter_info["type"])
+        result = client.get_all_bios_attributes(parameter_info["type"])
     elif cmd == 'get_bios_attribute':
-        result = system_client.get_bios_attribute(parameter_info["attribute_name"])
+        result = client.get_bios_attribute(parameter_info["attribute_name"])
     elif cmd == 'get_bios_attribute_metadata':
-        result = system_client.get_bios_attribute_metadata()
+        result = client.get_bios_attribute_metadata()
     elif cmd == 'get_bios_attribute_available_value':
-        result = system_client.get_bios_attribute_available_value(parameter_info["attribute_name"])
+        result = client.get_bios_attribute_available_value(parameter_info["attribute_name"])
     elif cmd == 'get_bios_bootmode':
-        result = system_client.get_bios_bootmode()
+        result = client.get_bios_bootmode()
     elif cmd == 'get_system_boot_order':
-        result = system_client.get_system_boot_order()
+        result = client.get_system_boot_order()
     elif cmd == 'get_cpu_inventory':
-        result = system_client.get_cpu_inventory()
+        result = client.get_cpu_inventory()
     elif cmd == 'get_memory_inventory':
-        result = system_client.get_memory_inventory(parameter_info["id"])
+        result = client.get_memory_inventory(parameter_info["id"])
     elif cmd == 'get_system_ethernet_interfaces':
-        result = system_client.get_system_ethernet_interfaces()
+        result = client.get_system_ethernet_interfaces()
     elif cmd == 'get_system_storage':
-        result = system_client.get_system_storage()
+        result = client.get_system_storage()
     elif cmd == 'get_system_simple_storage':
-        result = system_client.get_system_simple_storage()
+        result = client.get_system_simple_storage()
     elif cmd == 'get_storage_inventory':
-        result = system_client.get_storage_inventory()
+        result = client.get_storage_inventory()
     elif cmd == 'get_system_power_state':
-        result = system_client.get_system_power_state()
+        result = client.get_system_power_state()
     elif cmd == 'get_system_inventory':
-        result = system_client.get_system_inventory()
+        result = client.get_system_inventory()
     elif cmd == 'get_system_log':
-        result = system_client.get_system_log(parameter_info["type"])
+        result = client.get_system_log(parameter_info["type"])
     elif cmd == 'get_system_reset_types':
-        result = system_client.get_system_reset_types()
+        result = client.get_system_reset_types()
     elif cmd == 'set_bios_attribute':
-        result = system_client.set_bios_attribute(parameter_info["attribute_name"], parameter_info["attribute_value"])
+        result = client.set_bios_attribute(parameter_info["attribute_name"], parameter_info["attribute_value"])
     elif cmd == 'set_system_boot_order':
-        result = system_client.set_system_boot_order(parameter_info["bootorder"])
+        result = client.set_system_boot_order(parameter_info["bootorder"])
     elif cmd == 'set_bios_bootmode':
-        result = system_client.set_bios_bootmode(parameter_info["bootmode"])
+        result = client.set_bios_bootmode(parameter_info["bootmode"])
     elif cmd == 'set_system_power_state':
-        result = system_client.set_system_power_state(parameter_info["reset_type"])
+        result = client.set_system_power_state(parameter_info["reset_type"])
     else:
         result = {'ret': False, 'msg': "Subcommand is not supported."}
     
-    system_client.logout()
+    client.logout()
     return result
 
 def usage():

@@ -34,6 +34,9 @@ if __name__ == "__main__":
     ip = "10.245.39.251"
     user = "renxulei"
     password = "PASSW0RD12q"
+
+    ############# System ################
+    #####################################
     
     msg = "python lenovo_system_client.py -i %s -u %s -p %s get_cpu_inventory" % (ip, user, password)
     print(msg)
@@ -140,7 +143,7 @@ if __name__ == "__main__":
     msg = "python lenovo_system_client.py -i %s -u %s -p %s get_system_log --type system" % (ip, user, password)
     print(msg)
     sys.stdout.flush()
-    os.system(msg)
+    #os.system(msg)
     print("")
 
     msg = "python lenovo_system_client.py -i %s -u %s -p %s get_system_reset_types" % (ip, user, password)
@@ -155,7 +158,7 @@ if __name__ == "__main__":
     os.system(msg)
     print("")
 
-    bootorder = '"ubuntu" "Hard Disk" "USB Storage"'
+    bootorder = '"ubuntu" "Hard Disk" "USB Storage" "CD/DVD Rom"'
     #bootorder = ['Hard Drive', 'CD/DVD Drive', 'ubuntu', 'Windows Boot Manager', 'UEFI: PXE IP4 Mellanox Network Adapter']
     msg = "python lenovo_system_client.py -i %s -u %s -p %s set_system_boot_order --bootorder %s" % (ip, user, password, bootorder)
     print(msg)
@@ -177,6 +180,8 @@ if __name__ == "__main__":
 
 
     ############# Manager ################
+    ##################### ################
+
     msg = "python lenovo_manager_client.py -i %s -u %s -p %s get_bmc_inventory" % (ip, user, password)
     print(msg)
     sys.stdout.flush()
@@ -225,19 +230,25 @@ if __name__ == "__main__":
     os.system(msg)
     print("")
 
-    msg = "python lenovo_manager_client.py -i %s -u %s -p %s lenovo_create_bmc_user --username 'abcd' --password 'PASSW0RD=0' --authority 'Supervisor' " % (ip, user, password)
+    msg = "python lenovo_manager_client.py -i %s -u %s -p %s lenovo_create_bmc_user --username abcd --password PASSW0RD12q --authority Supervisor " % (ip, user, password)
     print(msg)
     sys.stdout.flush()
     os.system(msg)
     print("")
 
-    msg = "python lenovo_manager_client.py -i %s -u %s -p %s lenovo_delete_bmc_user --username 'abcd'" % (ip, user, password)
+    msg = "python lenovo_manager_client.py -i %s -u %s -p %s lenovo_delete_bmc_user --username abcd" % (ip, user, password)
     print(msg)
     sys.stdout.flush()
     os.system(msg)
     print("")
 
-    msg = "python lenovo_manager_client.py -i %s -u %s -p %s set_bmc_networkprotocol --service 'IPMI' --enabled 0" % (ip, user, password)
+    msg = "python lenovo_manager_client.py -i %s -u %s -p %s set_bmc_networkprotocol --service IPMI --enabled 0" % (ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
+    msg = "python lenovo_manager_client.py -i %s -u %s -p %s set_bmc_networkprotocol --service DHCPv6 --enabled 0" % (ip, user, password)
     print(msg)
     sys.stdout.flush()
     os.system(msg)
@@ -249,25 +260,43 @@ if __name__ == "__main__":
     os.system(msg)
     print("")
 
-    msg = "python lenovo_manager_client.py -i %s -u %s -p %s lenovo_mount_virtual_media --image 'bios.iso' --fsprotocol 'NFS' --fsip '10.245.100.159' --fsdir '/home/nfs' " % (ip, user, password)
+    msg = "python lenovo_manager_client.py -i %s -u %s -p %s lenovo_export_ffdc --fsprotocol SFTP --fsip 10.245.100.159 --fsdir /home/sftp_root/upload --fsusername mysftp --fspassword wlylenovo" % (ip, user, password)
     print(msg)
     sys.stdout.flush()
     os.system(msg)
     print("")
 
-    msg = "python lenovo_manager_client.py -i %s -u %s -p %s lenovo_umount_virtual_media --image 'bios.iso'" % (ip, user, password)
+    msg = "python lenovo_manager_client.py -i %s -u %s -p %s lenovo_mount_virtual_media --image bios.iso --fsprotocol NFS --fsip 10.245.100.159 --fsdir /home/nfs " % (ip, user, password)
     print(msg)
     sys.stdout.flush()
     os.system(msg)
     print("")
 
-    msg = "python lenovo_manager_client.py -i %s -u %s -p %s lenovo_bmc_config_backup --backup_password 'Aa1234567'" % (ip, user, password)
+    msg = "python lenovo_manager_client.py -i %s -u %s -p %s lenovo_umount_virtual_media --image bios.iso" % (ip, user, password)
     print(msg)
     sys.stdout.flush()
     os.system(msg)
     print("")
 
-    msg = "python lenovo_manager_client.py -i %s -u %s -p %s lenovo_bmc_config_restore" --backup_password 'Aa1234567'" % (ip, user, password)
+    msg = "python lenovo_manager_client.py -i %s -u %s -p %s lenovo_mount_virtual_media --image efiboot.img --fsprotocol HTTP --fsip 10.103.62.175 --fsport 8080 --fsdir /upload " % (ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
+    msg = "python lenovo_manager_client.py -i %s -u %s -p %s lenovo_umount_virtual_media --image efiboot.img" % (ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
+    msg = "python lenovo_manager_client.py -i %s -u %s -p %s lenovo_bmc_config_backup --backup_password Aa1234567" % (ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
+    msg = "python lenovo_manager_client.py -i %s -u %s -p %s lenovo_bmc_config_restore --backup_password Aa1234567 --backup_file .\\bmc_config_backup.json" % (ip, user, password)
     print(msg)
     sys.stdout.flush()
     os.system(msg)
@@ -279,7 +308,26 @@ if __name__ == "__main__":
     # os.system(msg)
     print("")
 
-    msg = "python lenovo_manager_client.py -i %s -u %s -p %s set_bmc_ntp --ntp_server '2.2.2.2' '3.3.3.3' --protocol_enabled 1" % (ip, user, password)
+    msg = "python lenovo_manager_client.py -i %s -u %s -p %s set_bmc_ntp --ntp_server 2.2.2.2 3.3.3.3 --protocol_enabled 1" % (ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
+    ############# Update ################
+    #####################################
+
+    msg = "python lenovo_update_client.py -i %s -u %s -p %s get_firmware_inventory" % (ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    # os.system(msg)
+    print("")
+
+    fsdir = "D:\\Workdata20190427\\work\\Task\\46-Redfish\\FW-Package\\20C\\Intel"
+    image = "lnvgy_fw_uefi_ive160g-2.70_anyos_32-64.uxz"
+    #image = "lnvgy_fw_xcc_cdi358g-4.80_anyos_noarch.uxz"
+    msg = "python lenovo_update_client.py -i %s -u %s -p %s lenovo_update_firmware --image %s --fsdir %s" % (ip, user, password, image, fsdir)
+    #msg = "python lenovo_update_client.py -i %s -u %s -p %s lenovo_update_firmware --image %s --fsprotocol SFTP --fsip 10.245.100.159 --fsdir /home/sftp_root/upload --fsusername mysftp --fspassword wlylenovo" % (ip, user, password, image)
     print(msg)
     sys.stdout.flush()
     os.system(msg)
