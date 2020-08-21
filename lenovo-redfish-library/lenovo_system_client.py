@@ -948,87 +948,24 @@ def add_sub_parameter(subcommand_parsers):
         for arg in cmd_list[func]['args']:
             parser_function.add_argument(arg['argname'], type=arg['type'], nargs=arg['nargs'], required=arg['required'], help=arg['help'])
 
-def parse_sub_parameter(args):
-    """ return dict of parameter info"""
-
-    parameter_info = {}
-    if args.subcommand_name not in cmd_list.keys():
-        result = {'ret': False, 'msg': "Subcommand is not correct."}
-        return result
-    else:
-        parameter_info["subcommand"] = args.subcommand_name
-
-    cmd = args.subcommand_name
-    if cmd == 'get_all_bios_attributes':
-        parameter_info["type"] = 'current'
-        if args.type:
-            parameter_info["type"] = args.type
-    elif cmd == 'get_bios_attribute':
-        if args.attribute_name:
-            parameter_info["attribute_name"] = args.attribute_name
-    elif cmd == 'get_bios_attribute_metadata':
-        pass
-    elif cmd == 'get_bios_attribute_available_value':
-        parameter_info["attribute_name"] = 'all'
-        if args.attribute_name:
-            parameter_info["attribute_name"] = args.attribute_name
-    elif cmd == 'get_bios_bootmode':
-        pass
-    elif cmd == 'get_system_boot_order':
-        pass
-    elif cmd == 'get_cpu_inventory':
-        pass
-    elif cmd == 'get_memory_inventory':
-        parameter_info["id"] = None
-        if args.id != None:
-            parameter_info["id"] = args.id
-    elif cmd == 'get_system_ethernet_interfaces':
-        pass
-    elif cmd == 'get_system_storage':
-        pass
-    elif cmd == 'get_system_simple_storage':
-        pass
-    elif cmd == 'get_storage_inventory':
-        pass
-    elif cmd == 'get_system_power_state':
-        pass
-    elif cmd == 'get_system_inventory':
-        pass
-    elif cmd == 'get_system_log':
-        parameter_info["type"] = 'system'
-        if args.type:
-            parameter_info["type"] = args.type
-    elif cmd == 'get_system_reset_types':
-        pass
-    elif cmd == 'set_bios_attribute':
-        if args.attribute_name:
-            parameter_info["attribute_name"] = args.attribute_name
-        if args.attribute_value != None:
-            parameter_info["attribute_value"] = args.attribute_value
-    elif cmd == 'set_system_boot_order':
-        if args.bootorder:
-            parameter_info["bootorder"] = args.bootorder
-    elif cmd == 'set_bios_bootmode':
-        if args.bootmode:
-            parameter_info["bootmode"] = args.bootmode
-    elif cmd == 'set_system_power_state':
-        if args.reset_type:
-            parameter_info["reset_type"] = args.reset_type
-    else:
-        pass
-
-    result = {'ret': True, 'entries': parameter_info}
-    return result
-
-def run_subcommand(parameter_info):
+def run_subcommand(args):
     """ return result of running subcommand """
 
-    client = LenovoSystemClient(ip=parameter_info['ip'], \
+    parameter_info = {}
+    parameter_info = parse_common_parameter(args)
+
+    cmd = args.subcommand_name
+    if cmd not in cmd_list.keys():
+        result = {'ret': False, 'msg': "Subcommand is not correct."}
+        usage()
+        return result
+
+    try:
+        client = LenovoSystemClient(ip=parameter_info['ip'], \
                                 username=parameter_info['user'], \
                                 password=parameter_info['password'], \
                                 configfile=parameter_info['config'], \
                                 auth=parameter_info['auth'])
-    try:
         client.login()
     except Exception as e:
         LOGGER.debug("%s" % traceback.format_exc())
@@ -1038,52 +975,90 @@ def run_subcommand(parameter_info):
         return {'ret': False, 'msg': msg}
 
     result = {}
-    cmd = parameter_info["subcommand"]
     if cmd == 'get_all_bios_attributes':
+        parameter_info["type"] = 'current'
+        if args.type:
+            parameter_info["type"] = args.type
         result = client.get_all_bios_attributes(parameter_info["type"])
+
     elif cmd == 'get_bios_attribute':
+        parameter_info["attribute_name"] = args.attribute_name
         result = client.get_bios_attribute(parameter_info["attribute_name"])
+
     elif cmd == 'get_bios_attribute_metadata':
         result = client.get_bios_attribute_metadata()
+
     elif cmd == 'get_bios_attribute_available_value':
+        parameter_info["attribute_name"] = 'all'
+        if args.attribute_name:
+            parameter_info["attribute_name"] = args.attribute_name
         result = client.get_bios_attribute_available_value(parameter_info["attribute_name"])
+
     elif cmd == 'get_bios_bootmode':
         result = client.get_bios_bootmode()
+
     elif cmd == 'get_system_boot_order':
         result = client.get_system_boot_order()
+
     elif cmd == 'get_cpu_inventory':
         result = client.get_cpu_inventory()
+
     elif cmd == 'get_memory_inventory':
+        parameter_info["id"] = None
+        if args.id != None:
+            parameter_info["id"] = args.id
         result = client.get_memory_inventory(parameter_info["id"])
+
     elif cmd == 'get_system_ethernet_interfaces':
         result = client.get_system_ethernet_interfaces()
+
     elif cmd == 'get_system_storage':
         result = client.get_system_storage()
+
     elif cmd == 'get_system_simple_storage':
         result = client.get_system_simple_storage()
+
     elif cmd == 'get_storage_inventory':
         result = client.get_storage_inventory()
+
     elif cmd == 'get_system_power_state':
         result = client.get_system_power_state()
+
     elif cmd == 'get_system_inventory':
         result = client.get_system_inventory()
+
     elif cmd == 'get_system_log':
+        parameter_info["type"] = 'system'
+        if args.type:
+            parameter_info["type"] = args.type
         result = client.get_system_log(parameter_info["type"])
+
     elif cmd == 'get_system_reset_types':
         result = client.get_system_reset_types()
+
     elif cmd == 'set_bios_attribute':
+        parameter_info["attribute_name"] = args.attribute_name
+        parameter_info["attribute_value"] = args.attribute_value
         result = client.set_bios_attribute(parameter_info["attribute_name"], parameter_info["attribute_value"])
+
     elif cmd == 'set_system_boot_order':
+        parameter_info["bootorder"] = args.bootorder
         result = client.set_system_boot_order(parameter_info["bootorder"])
+
     elif cmd == 'set_bios_bootmode':
+        parameter_info["bootmode"] = args.bootmode
         result = client.set_bios_bootmode(parameter_info["bootmode"])
+
     elif cmd == 'set_system_power_state':
+        parameter_info["reset_type"] = args.reset_type
         result = client.set_system_power_state(parameter_info["reset_type"])
+
     else:
         result = {'ret': False, 'msg': "Subcommand is not supported."}
-    
+
     client.logout()
     return result
+
 
 def usage():
     print("  System subcommands:")
@@ -1104,16 +1079,7 @@ def main(argv):
 
     # Parse the parameters
     args = argget.parse_args()
-    result_common = parse_common_parameter(args)
-    result = parse_sub_parameter(args)
-    if result['ret'] == False:
-        print(result['msg'])
-        usage()
-        return
-    result['entries'].update(result_common['entries'])
-    parameter_info = result['entries']
-
-    result = run_subcommand(parameter_info)
+    result = run_subcommand(args)
     if 'msg' in result:
         print(result['msg'])
     if 'entries' in result:

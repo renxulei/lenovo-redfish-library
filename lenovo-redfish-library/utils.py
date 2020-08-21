@@ -139,18 +139,15 @@ def add_common_parameter(argget):
     argget.add_argument('-a', '--auth', type=str, default=None, choices=['session', 'basic'], help='Authentication mode(session or basic), the default is session')
 
 
-def parse_common_parameter(argget):
+def parse_common_parameter(args):
     """ return dict of parameter info"""
-    args = argget.parse_args()
-
     parameter_info = {}
     parameter_info["ip"] = args.ip if args.ip else ''    
     parameter_info["user"] = args.user if args.user else ''
     parameter_info["password"] = args.password if args.password else ''
     parameter_info["config"] = args.config if args.config else ''
     parameter_info["auth"] = args.auth if args.auth else ''
-    result = {'ret': True, 'entries': parameter_info}
-    return result
+    return parameter_info
 
 
 

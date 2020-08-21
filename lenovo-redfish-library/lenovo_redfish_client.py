@@ -70,36 +70,36 @@ class LenovoRedfishClient(HttpClient):
         self._long_connection = False
         self._bmc_type = ''
 
-        try:
-            config_ini_info = {}
-            # Get configuration file info
-            result = read_config(configfile)
-            
-            if result['ret'] == True:
-                if self._ip == '' or self._ip == None:
-                    self._ip = result['entries']['bmcip']
-                if self._user == '' or self._user == None:
-                    self._user = result['entries']['bmcusername']
-                if self._password == '' or self._password == None:
-                    self._password = result['entries']['bmcuserpassword']
-                if (self._auth == '' or self._auth == None) and result['entries']['auth'] != '':
-                    self._auth = result['entries']['auth']
- 
-                self._systemid = result['entries']['systemid']
-                self._managerid = result['entries']['managerid']
-                self._cafile = result['entries']['cafile']
+        config_ini_info = {}
+        # Get configuration file info
+        result = read_config(configfile)
+        
+        if result['ret'] == True:
+            if self._ip == '' or self._ip == None:
+                self._ip = result['entries']['bmcip']
+            if self._user == '' or self._user == None:
+                self._user = result['entries']['bmcusername']
+            if self._password == '' or self._password == None:
+                self._password = result['entries']['bmcuserpassword']
+            if (self._auth == '' or self._auth == None) and result['entries']['auth'] != '':
+                self._auth = result['entries']['auth']
 
-            if self._auth not in ['session', 'basic']:
-                self._auth = 'session'
-          
-            login_host = "https://" + self._ip
-            super(LenovoRedfishClient, self).__init__(\
-                        base_url=login_host, \
-                        username=self._user, password=self._password, \
-                        default_prefix='/redfish/v1', capath=None, \
-                        cafile=None, timeout=None, max_retry=3)
-        except Exception as e:
-            LOGGER.error("Error_message: %s." % repr(e))
+            self._systemid = result['entries']['systemid']
+            self._managerid = result['entries']['managerid']
+            self._cafile = result['entries']['cafile']
+
+        if self._auth not in ['session', 'basic']:
+            self._auth = 'session'
+
+        if not self._user  or not self._password or not self._ip:
+            raise Exception("Please check ip, user and password are correct.")
+
+        login_host = "https://" + self._ip
+        super(LenovoRedfishClient, self).__init__(\
+                    base_url=login_host, \
+                    username=self._user, password=self._password, \
+                    default_prefix='/redfish/v1', capath=None, \
+                    cafile=None, timeout=None, max_retry=3)
  
     # Once enabling this, logout will not clear the session info.
     # When you want to run several functions continuously, 
@@ -127,7 +127,6 @@ class LenovoRedfishClient(HttpClient):
                 LOGGER.error("Error_message: Failed to find the system resource. System id is %s ." % self._systemid)
         return self._suburl_system
 
-
     def _find_manager_resource(self):
         if self._suburl_manager != '':
             return self._suburl_manager
@@ -145,7 +144,6 @@ class LenovoRedfishClient(HttpClient):
             if self._suburl_manager == '':
                 LOGGER.error("Error_message: Failed to find the manager resource. Manager id is %s ." % self._managerid)
         return self._suburl_manager
-
 
     def _find_chassis_resource(self):
         if self._suburl_chassis != '':
@@ -176,7 +174,7 @@ class LenovoRedfishClient(HttpClient):
         if password != None and self._password != password:
             changed = True
             self._password = password
-        if auth != None and self._auth != auth:
+        if auth in ['basic', 'session'] and self._auth != auth:
             changed = True
             self._auth = auth
 

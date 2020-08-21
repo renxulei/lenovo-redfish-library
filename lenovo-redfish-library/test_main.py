@@ -38,12 +38,6 @@ if __name__ == "__main__":
     ############# System ################
     #####################################
     
-    msg = "python main.py -i %s -u %s -p %s get_cpu_inventory" % (ip, user, password)
-    print(msg)
-    sys.stdout.flush()
-    os.system(msg)
-    print("")
-    
     msg = "python main.py -i %s -u %s -p %s get_all_bios_attributes --type current" % (ip, user, password)
     print(msg)
     sys.stdout.flush()
@@ -55,6 +49,12 @@ if __name__ == "__main__":
     sys.stdout.flush()
     os.system(msg)
     print("")    
+
+    msg = "python main.py -i %s -u %s -p %s get_bios_attribute --attribute_name BootModes_SystemBootMode" % (ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
 
     msg = "python main.py -i %s -u %s -p %s get_bios_attribute_metadata" % (ip, user, password)
     print(msg)
