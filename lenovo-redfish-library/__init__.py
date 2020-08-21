@@ -1,6 +1,32 @@
+#!/usr/bin/python
+###
+#
+# Lenovo Redfish examples - Add event subscriptions
+#
+# Copyright Notice:
+#
+# Copyright 2020 Lenovo Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+###
+
+from .main import main
+
+"""
 from os.path import dirname, basename, isfile
 import glob
 
 modules = glob.glob(os.path.dirname(os.path.abspath(__file__)) + os.sep + "*.py")
 command_module_collection = [ basename(f)[:-3] for f in modules if isfile(f) and not f.endswith('__init__.py') and not f.endswith('lenovo_utils.py') and not f.endswith('manage_inventory.py')]
 __all__ = [ basename(f)[:-3] for f in modules if isfile(f) and not f.endswith('__init__.py')]
+"""
