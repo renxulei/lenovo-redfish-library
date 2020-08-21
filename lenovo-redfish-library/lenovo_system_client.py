@@ -33,15 +33,14 @@ from utils import parse_common_parameter
 class LenovoSystemClient(LenovoRedfishClient):
     """A client for managing system"""
 
-    def __init__(self, ip='', username='', password='', \
-                                configfile='config.ini', \
-                                auth=''):
+    def __init__(self, ip='', username='', password='',
+                 configfile='config.ini', auth=''):
         """Initialize LenovoSystemClient"""
 
-        super(LenovoSystemClient, self).__init__(\
-                    ip=ip, username=username, password=password, \
-                    configfile=configfile, \
-                    auth=auth)
+        super(LenovoSystemClient, self).__init__(
+            ip=ip, username=username, password=password, 
+            configfile=configfile, auth=auth
+        )
 
     #############################################
     # functions for getting information.
@@ -961,11 +960,11 @@ def run_subcommand(args):
         return result
 
     try:
-        client = LenovoSystemClient(ip=parameter_info['ip'], \
-                                username=parameter_info['user'], \
-                                password=parameter_info['password'], \
-                                configfile=parameter_info['config'], \
-                                auth=parameter_info['auth'])
+        client = LenovoSystemClient(ip=parameter_info['ip'], 
+                                    username=parameter_info['user'], 
+                                    password=parameter_info['password'], 
+                                    configfile=parameter_info['config'], 
+                                    auth=parameter_info['auth'])
         client.login()
     except Exception as e:
         LOGGER.debug("%s" % traceback.format_exc())
@@ -1004,9 +1003,7 @@ def run_subcommand(args):
         result = client.get_cpu_inventory()
 
     elif cmd == 'get_memory_inventory':
-        parameter_info["id"] = None
-        if args.id != None:
-            parameter_info["id"] = args.id
+        parameter_info["id"] = args.id
         result = client.get_memory_inventory(parameter_info["id"])
 
     elif cmd == 'get_system_ethernet_interfaces':

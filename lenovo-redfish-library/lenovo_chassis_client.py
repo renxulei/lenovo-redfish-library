@@ -33,15 +33,14 @@ from utils import parse_common_parameter
 class LenovoChassisClient(LenovoRedfishClient):
     """A client for accessing lenovo system resource"""
 
-    def __init__(self, ip='', username='', password='', \
-                                configfile='config.ini', \
-                                auth=''):
+    def __init__(self, ip='', username='', password='',
+                 configfile='config.ini', auth=''):
         """Initialize LenovoChassisClient"""
 
-        super(LenovoChassisClient, self).__init__(\
-                    ip=ip, username=username, password=password, \
-                    configfile=configfile, \
-                    auth=auth)
+        super(LenovoChassisClient, self).__init__(
+            ip=ip, username=username, password=password, 
+            configfile=configfile, auth=auth
+        )
 
     #############################################
     # functions for getting information.
@@ -230,7 +229,7 @@ class LenovoChassisClient(LenovoRedfishClient):
     # functions for setting information.
     #############################################
 
-    # TBU
+    # ToDo
 
 cmd_list = {
         "get_pci_inventory": {
@@ -277,50 +276,26 @@ def add_sub_parameter(subcommand_parsers):
         for arg in cmd_list[func]['args']:
             parser_function.add_argument(arg['argname'], type=arg['type'], nargs=arg['nargs'], required=arg['required'], help=arg['help'])
 
-def parse_sub_parameter(args):
-    """ return dict of parameter info"""
-
-    parameter_info = {}
-    if args.subcommand_name not in cmd_list.keys():
-        result = {'ret': False, 'msg': "Subcommand is not correct."}
-        return result
-    else:
-        parameter_info["subcommand"] = args.subcommand_name
-
-    cmd = args.subcommand_name
-    if cmd == 'get_pci_inventory':
-        pass
-    elif cmd == 'get_nic_inventory':
-        pass
-    elif cmd == 'get_fan_inventory':
-        pass
-    elif cmd == 'get_temperatures_inventory':
-        pass
-    elif cmd == 'get_psu_inventory':
-        pass
-    elif cmd == 'get_power_redundancy':
-        pass
-    elif cmd == 'get_power_voltages':
-        pass
-    elif cmd == 'get_power_metrics':
-        pass
-    elif cmd == 'get_power_limit':
-        pass
-    else:
-        pass
-
-    result = {'ret': True, 'entries': parameter_info}
-    return result
-
-def run_subcommand(parameter_info):
+def run_subcommand(args):
     """ return result of running subcommand """
 
-    client = LenovoChassisClient(ip=parameter_info['ip'], \
-                                 username=parameter_info['user'], \
-                                 password=parameter_info['password'], \
-                                 configfile=parameter_info['config'], \
-                                 auth=parameter_info['auth'])
+    parameter_info = {}
+    parameter_info = parse_common_parameter(args)
+
+    cmd = args.subcommand_name
+    if cmd not in cmd_list.keys():
+        result = {'ret': False, 'msg': "Subcommand is not correct."}
+        usage()
+        return result
+
     try:
+        client = LenovoChassisClient(
+                     ip=parameter_info['ip'],
+                     username=parameter_info['user'],
+                     password=parameter_info['password'],
+                     configfile=parameter_info['config'],
+                     auth=parameter_info['auth']
+                 )
         client.login()
     except Exception as e:
         LOGGER.debug("%s" % traceback.format_exc())
@@ -330,28 +305,36 @@ def run_subcommand(parameter_info):
         return {'ret': False, 'msg': msg}
 
     result = {}
-    cmd = parameter_info["subcommand"]
     if cmd == 'get_pci_inventory':
         result = client.get_pci_inventory()
+
     elif cmd == 'get_nic_inventory':
         result = client.get_nic_inventory()
+
     elif cmd == 'get_fan_inventory':
         result = client.get_fan_inventory()
+
     elif cmd == 'get_temperatures_inventory':
         result = client.get_temperatures_inventory()
+
     elif cmd == 'get_psu_inventory':
         result = client.get_psu_inventory()
+
     elif cmd == 'get_power_redundancy':
         result = client.get_power_redundancy()
+
     elif cmd == 'get_power_voltages':
         result = client.get_power_voltages()
+
     elif cmd == 'get_power_metrics':
         result = client.get_power_metrics()
+
     elif cmd == 'get_power_limit':
         result = client.get_power_limit()
+
     else:
         result = {'ret': False, 'msg': "Subcommand is not supported."}
-    
+
     client.logout()
     return result
 
@@ -374,16 +357,7 @@ def main(argv):
 
     # Parse the parameters
     args = argget.parse_args()
-    result_common = parse_common_parameter(args)
-    result = parse_sub_parameter(args)
-    if result['ret'] == False:
-        print(result['msg'])
-        usage()
-        return
-    result['entries'].update(result_common['entries'])
-    parameter_info = result['entries']
-
-    result = run_subcommand(parameter_info)
+    result = run_subcommand(args)
     if 'msg' in result:
         print(result['msg'])
     if 'entries' in result:

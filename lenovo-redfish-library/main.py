@@ -53,44 +53,27 @@ def main(argv):
 
     # Parse the parameters
     args = argget.parse_args()
-    result_common = parse_common_parameter(args)
-    if result_common['ret'] == False:
-        print(result_common['msg'])
-        usage()
-        sys.exit(1)
 
     if args.subcommand_name in lenovo_system_client.cmd_list.keys():
-        result_sub = lenovo_system_client.parse_sub_parameter(args)
+        result = lenovo_system_client.run_subcommand(args)
     elif args.subcommand_name in lenovo_manager_client.cmd_list.keys():
-        result_sub = lenovo_manager_client.parse_sub_parameter(args)
+        result = lenovo_manager_client.run_subcommand(args)
     elif args.subcommand_name in lenovo_chassis_client.cmd_list.keys():
-        result_sub = lenovo_chassis_client.parse_sub_parameter(args)
+        result = lenovo_chassis_client.run_subcommand(args)
     elif args.subcommand_name in lenovo_update_client.cmd_list.keys():
-        result_sub = lenovo_update_client.parse_sub_parameter(args)
+        result = lenovo_update_client.run_subcommand(args)
     else:
-        result_sub = {'ret': False, 'msg': "Please specify correct subcommand."}
-
-    if result_sub['ret'] == False:
-        print(result_sub['msg'])
         usage()
-        sys.exit(1)
-
-    result_common['entries'].update(result_sub['entries'])
-    parameter_info = result_common['entries']
-
-    if args.subcommand_name in lenovo_system_client.cmd_list.keys():
-        result = lenovo_system_client.run_subcommand(parameter_info)
-    elif args.subcommand_name in lenovo_manager_client.cmd_list.keys():
-        result = lenovo_manager_client.run_subcommand(parameter_info)
-    elif args.subcommand_name in lenovo_chassis_client.cmd_list.keys():
-        result = lenovo_chassis_client.run_subcommand(parameter_info)
-    elif args.subcommand_name in lenovo_update_client.cmd_list.keys():
-        result = lenovo_update_client.run_subcommand(parameter_info)
+        result = {'ret': False, 'msg': "Please specify correct subcommand."}
 
     if 'msg' in result:
         print(result['msg'])
     if 'entries' in result:
         print(json.dumps(result['entries'], sort_keys=True, indent=2))
+    if result['ret'] == False:
+        sys.exit(1)
+    else:
+        sys.exit(0)
 
 
 if __name__ == "__main__":

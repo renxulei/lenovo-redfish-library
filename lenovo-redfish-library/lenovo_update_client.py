@@ -35,15 +35,14 @@ from utils import parse_common_parameter
 class LenovoUpdateClient(LenovoRedfishClient):
     """A client for updating firmware"""
 
-    def __init__(self, ip='', username='', password='', \
-                                configfile='config.ini', \
-                                auth=''):
+    def __init__(self, ip='', username='', password='',
+                 configfile='config.ini', auth=''):
         """Initialize LenovoUpdateClient"""
 
-        super(LenovoUpdateClient, self).__init__(\
-                    ip=ip, username=username, password=password, \
-                    configfile=configfile, \
-                    auth=auth)
+        super(LenovoUpdateClient, self).__init__(
+            ip=ip, username=username, password=password, 
+            configfile=configfile, auth=auth
+        )
 
     #############################################
     # functions for getting information.
@@ -327,62 +326,24 @@ def add_sub_parameter(subcommand_parsers):
         for arg in cmd_list[func]['args']:
             parser_function.add_argument(arg['argname'], type=arg['type'], nargs=arg['nargs'], required=arg['required'], help=arg['help'])
 
-def parse_sub_parameter(args):
-    """ return dict of parameter info"""
-
-    parameter_info = {}
-    if args.subcommand_name not in cmd_list.keys():
-        result = {'ret': False, 'msg': "Subcommand is not correct."}
-        return result
-    else:
-        parameter_info["subcommand"] = args.subcommand_name
-
-    cmd = args.subcommand_name
-    if cmd == 'get_firmware_inventory':
-        pass
-    elif cmd == 'lenovo_update_firmware':
-        parameter_info["image"] = None
-        if args.image:
-            parameter_info["image"] = args.image
-
-        parameter_info["target"] = None
-        if args.target:
-            parameter_info["target"] = args.target
-
-        parameter_info["fsprotocol"] = 'HTTPPUSH'
-        if args.fsprotocol:
-            parameter_info["fsprotocol"] = args.fsprotocol
-
-        parameter_info["fsip"] = None
-        if args.fsip:
-            parameter_info["fsip"] = args.fsip
-
-        parameter_info["fsdir"] = None
-        if args.fsdir:
-            parameter_info["fsdir"] = args.fsdir
-
-        parameter_info["fsusername"] = None
-        if args.fsusername:
-            parameter_info["fsusername"] = args.fsusername
-
-        parameter_info["fspassword"] = None
-        if args.fspassword:
-            parameter_info["fspassword"] = args.fspassword
-    else:
-        pass
-
-    result = {'ret': True, 'entries': parameter_info}
-    return result
-
-def run_subcommand(parameter_info):
+def run_subcommand(args):
     """ return result of running subcommand """
 
-    client = LenovoUpdateClient(ip=parameter_info['ip'], \
-                                username=parameter_info['user'], \
-                                password=parameter_info['password'], \
-                                configfile=parameter_info['config'], \
-                                auth=parameter_info['auth'])
+    parameter_info = {}
+    parameter_info = parse_common_parameter(args)
+
+    cmd = args.subcommand_name
+    if cmd not in cmd_list.keys():
+        result = {'ret': False, 'msg': "Subcommand is not correct."}
+        usage()
+        return result
+
     try:
+        client = LenovoUpdateClient(ip=parameter_info['ip'], 
+                                    username=parameter_info['user'], 
+                                    password=parameter_info['password'], 
+                                    configfile=parameter_info['config'], 
+                                    auth=parameter_info['auth'])
         client.login()
     except Exception as e:
         LOGGER.debug("%s" % traceback.format_exc())
@@ -392,16 +353,33 @@ def run_subcommand(parameter_info):
         return {'ret': False, 'msg': msg}
 
     result = {}
-    cmd = parameter_info["subcommand"]
     if cmd == 'get_firmware_inventory':
         result = client.get_firmware_inventory()
+
     elif cmd == 'lenovo_update_firmware':
-        result = client.lenovo_update_firmware(parameter_info["image"], parameter_info["target"], parameter_info["fsprotocol"], parameter_info["fsip"], parameter_info["fsdir"], parameter_info["fsusername"], parameter_info["fspassword"])
+        parameter_info["image"] = args.image
+        parameter_info["target"] = args.target
+        parameter_info["fsprotocol"] = 'HTTPPUSH'
+        if args.fsprotocol:
+            parameter_info["fsprotocol"] = args.fsprotocol
+        parameter_info["fsip"] = args.fsip
+        parameter_info["fsdir"] = args.fsdir
+        parameter_info["fsusername"] = args.fsusername
+        parameter_info["fspassword"] = args.fspassword
+
+        result = client.lenovo_update_firmware(parameter_info["image"], 
+                                               parameter_info["target"], 
+                                               parameter_info["fsprotocol"], 
+                                               parameter_info["fsip"], 
+                                               parameter_info["fsdir"], 
+                                               parameter_info["fsusername"], 
+                                               parameter_info["fspassword"])
     else:
         result = {'ret': False, 'msg': "Subcommand is not supported."}
-    
+
     client.logout()
     return result
+
 
 def usage():
     print("  Update subcommands:")
@@ -422,16 +400,7 @@ def main(argv):
 
     # Parse the parameters
     args = argget.parse_args()
-    result_common = parse_common_parameter(args)
-    result = parse_sub_parameter(args)
-    if result['ret'] == False:
-        print(result['msg'])
-        usage()
-        return
-    result['entries'].update(result_common['entries'])
-    parameter_info = result['entries']
-
-    result = run_subcommand(parameter_info)
+    result = run_subcommand(args)
     if 'msg' in result:
         print(result['msg'])
     if 'entries' in result:

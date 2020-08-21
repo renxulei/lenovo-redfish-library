@@ -35,15 +35,14 @@ from utils import parse_common_parameter
 class LenovoManagerClient(LenovoRedfishClient):
     """A client for managing bmc"""
 
-    def __init__(self, ip='', username='', password='', \
-                                configfile='config.ini', \
-                                auth=''):
+    def __init__(self, ip='', username='', password='',
+                 configfile='config.ini', auth=''):
         """Initialize LenovoManagerClient"""
 
-        super(LenovoManagerClient, self).__init__(\
-                    ip=ip, username=username, password=password, \
-                    configfile=configfile, \
-                    auth=auth)
+        super(LenovoManagerClient, self).__init__(
+            ip=ip, username=username, password=password, 
+            configfile=configfile, auth=auth
+        )
 
     #############################################
     # functions for getting information.
@@ -1203,11 +1202,11 @@ def run_subcommand(args):
         return result
 
     try:
-        client = LenovoManagerClient(ip=parameter_info['ip'], \
-                                username=parameter_info['user'], \
-                                password=parameter_info['password'], \
-                                configfile=parameter_info['config'], \
-                                auth=parameter_info['auth'])
+        client = LenovoManagerClient(ip=parameter_info['ip'], 
+                                    username=parameter_info['user'], 
+                                    password=parameter_info['password'], 
+                                    configfile=parameter_info['config'], 
+                                    auth=parameter_info['auth'])
         client.login()
     except Exception as e:
         LOGGER.debug("%s" % traceback.format_exc())
@@ -1253,52 +1252,26 @@ def run_subcommand(args):
 
     elif cmd == 'set_bmc_networkprotocol':
         parameter_info["service"] = args.service
-        parameter_info["enabled"] = None
-        if args.enabled != None:
-            parameter_info["enabled"] = args.enabled
-        parameter_info["port"] = None
-        if args.port:
-            parameter_info["port"] = args.port
+        parameter_info["enabled"] = args.enabled
+        parameter_info["port"] = args.port
         result = client.set_bmc_networkprotocol(parameter_info["service"], parameter_info["enabled"], parameter_info["port"])
 
     elif cmd == 'lenovo_export_ffdc':
-        parameter_info["data_type"] = None
-        if args.data_type:
-            parameter_info["data_type"] = args.data_type
-        parameter_info["fsprotocol"] = None
-        if args.fsprotocol:
-            parameter_info["fsprotocol"] = args.fsprotocol
-        parameter_info["fsip"] = None
-        if args.fsip:
-            parameter_info["fsip"] = args.fsip
-        parameter_info["fsport"] = None
-        if args.fsport:
-            parameter_info["fsport"] = args.fsport
-        parameter_info["fsdir"] = None
-        if args.fsdir:
-            parameter_info["fsdir"] = args.fsdir
-        parameter_info["fsusername"] = None
-        if args.fsusername:
-            parameter_info["fsusername"] = args.fsusername
-        parameter_info["fspassword"] = None
-        if args.fspassword:
-            parameter_info["fspassword"] = args.fspassword
+        parameter_info["data_type"] = args.data_type
+        parameter_info["fsprotocol"] = args.fsprotocol
+        parameter_info["fsip"] = args.fsip
+        parameter_info["fsport"] = args.fsport
+        parameter_info["fsdir"] = args.fsdir
+        parameter_info["fsusername"] = args.fsusername
+        parameter_info["fspassword"] = args.fspassword
         result = client.lenovo_export_ffdc(parameter_info["data_type"], parameter_info["fsprotocol"], parameter_info["fsip"], parameter_info["fsport"], parameter_info["fsdir"], parameter_info["fsusername"], parameter_info["fspassword"])
 
     elif cmd == 'lenovo_mount_virtual_media':
         parameter_info["image"] = args.image
-        parameter_info["fsprotocol"] = None
-        if args.fsprotocol:
-            parameter_info["fsprotocol"] = args.fsprotocol
-        parameter_info["fsip"] = None
-        if args.fsip:
-            parameter_info["fsip"] = args.fsip
-        parameter_info["fsport"] = None
-        if args.fsport:
-            parameter_info["fsport"] = args.fsport
-        parameter_info["fsdir"] = None
-        if args.fsdir:
-            parameter_info["fsdir"] = args.fsdir
+        parameter_info["fsprotocol"] = args.fsprotocol
+        parameter_info["fsip"] = args.fsip
+        parameter_info["fsport"] = args.fsport
+        parameter_info["fsdir"] = args.fsdir
         parameter_info["inserted"] = 1
         if args.inserted != None:
             parameter_info["inserted"] = args.inserted
@@ -1316,34 +1289,18 @@ def run_subcommand(args):
 
     elif cmd == 'lenovo_bmc_config_backup':
         parameter_info["backup_password"] = args.backup_password
-        parameter_info["backup_file"] = None
-        if args.backup_file:
-            parameter_info["backup_file"] = args.backup_file
-        parameter_info["httpip"] = None
-        if args.httpip:
-            parameter_info["httpip"] = args.httpip
-        parameter_info["httpport"] = None
-        if args.httpport:
-            parameter_info["httpport"] = args.httpport
-        parameter_info["httpdir"] = None
-        if args.httpdir:
-            parameter_info["httpdir"] = args.httpdir
+        parameter_info["backup_file"] = args.backup_file
+        parameter_info["httpip"] = args.httpip
+        parameter_info["httpport"] = args.httpport
+        parameter_info["httpdir"] = args.httpdir
         result = client.lenovo_bmc_config_backup(parameter_info["backup_password"], parameter_info["backup_file"], parameter_info["httpip"], parameter_info["httpport"], parameter_info["httpdir"])
 
     elif cmd == 'lenovo_bmc_config_restore':
         parameter_info["backup_password"] = args.backup_password
-        parameter_info["backup_file"] = None
-        if args.backup_file:
-            parameter_info["backup_file"] = args.backup_file
-        parameter_info["httpip"] = None
-        if args.httpip:
-            parameter_info["httpip"] = args.httpip
-        parameter_info["httpport"] = None
-        if args.httpport:
-            parameter_info["httpport"] = args.httpport
-        parameter_info["httpdir"] = None
-        if args.httpdir:
-            parameter_info["httpdir"] = args.httpdir
+        parameter_info["backup_file"] = args.backup_file
+        parameter_info["httpip"] = args.httpip
+        parameter_info["httpport"] = args.httpport
+        parameter_info["httpdir"] = args.httpdir
         result = client.lenovo_bmc_config_restore(parameter_info["backup_password"], parameter_info["backup_file"], parameter_info["httpip"], parameter_info["httpport"], parameter_info["httpdir"])
 
     elif cmd == 'reset_bmc':

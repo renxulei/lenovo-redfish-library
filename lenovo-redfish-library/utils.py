@@ -36,9 +36,10 @@ LOGGERFILE = "LenovoRedfishClient.log"
 LOGGERFORMAT = "%(asctime)s - %(name)s - %(lineno)d - %(levelname)s - %(message)s"
 LOGGER = redfish_logger(LOGGERFILE, LOGGERFORMAT, logging.DEBUG)
 
-common_property_excluded = ["@odata.context", "@odata.id", "@odata.type", \
-                            "@odata.etag", "Description", "Actions", \
-                            "RelatedItem", "RelatedItem@odata.count"]
+common_property_excluded = [
+        "@odata.context", "@odata.id", "@odata.type",
+        "@odata.etag", "Description", "Actions",
+        "RelatedItem", "RelatedItem@odata.count"]
 
 def propertyFilter(data, properties_excluded=common_property_excluded, strings_excluded=[]):
     if isinstance(data, dict):

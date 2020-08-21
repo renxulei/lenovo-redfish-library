@@ -39,9 +39,8 @@ warnings.filterwarnings('ignore')
 class LenovoRedfishClient(HttpClient):
     """Base class for accessing lenovo Redfish service"""
 
-    def __init__(self, ip='', username='', password='', \
-                                configfile='config.ini', \
-                                auth=''):
+    def __init__(self, ip='', username='', password='',
+                 configfile='config.ini', auth=''):
         """Initialize LenovoRedfishClient
 
         :param ip: The url of the remote system
@@ -95,11 +94,12 @@ class LenovoRedfishClient(HttpClient):
             raise Exception("Please check ip, user and password are correct.")
 
         login_host = "https://" + self._ip
-        super(LenovoRedfishClient, self).__init__(\
-                    base_url=login_host, \
-                    username=self._user, password=self._password, \
-                    default_prefix='/redfish/v1', capath=None, \
-                    cafile=None, timeout=None, max_retry=3)
+        super(LenovoRedfishClient, self).__init__(
+            base_url=login_host, 
+            username=self._user, password=self._password, 
+            default_prefix='/redfish/v1', capath=None, 
+            cafile=None, timeout=None, max_retry=3
+        )
  
     # Once enabling this, logout will not clear the session info.
     # When you want to run several functions continuously, 
