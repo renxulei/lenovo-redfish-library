@@ -1184,17 +1184,14 @@ cmd_list = {
         }
 }
 
-def add_sub_parameter(argget):
-    subcommand_parsers = argget.add_subparsers(dest='subcommand_name', help='all subcommands')
-    
+def add_sub_parameter(subcommand_parsers):    
     for func in cmd_list.keys():
         parser_function = subcommand_parsers.add_parser(func, help=cmd_list[func]['help'])
         for arg in cmd_list[func]['args']:
             parser_function.add_argument(arg['argname'], type=arg['type'], nargs=arg['nargs'], required=arg['required'], help=arg['help'])
 
-def parse_sub_parameter(argget):
+def parse_sub_parameter(args):
     """ return dict of parameter info"""
-    args = argget.parse_args()
 
     parameter_info = {}
     if args.subcommand_name not in cmd_list.keys():
@@ -1398,7 +1395,7 @@ def run_subcommand(parameter_info):
     return result
 
 def usage():
-    print("  Subcommands:")
+    print("  Manager subcommands:")
     for cmd in cmd_list.keys():
         print("    %-42s Help:  %-120s" % (cmd, cmd_list[cmd]['help']))
         for arg in cmd_list[cmd]['args']:
@@ -1410,11 +1407,14 @@ def main(argv):
 
     argget = argparse.ArgumentParser(description="Lenovo Redfish Tool - Manager Client")
     add_common_parameter(argget)
-    add_sub_parameter(argget)
+
+    subcommand_parsers = argget.add_subparsers(dest='subcommand_name', help='all subcommands')
+    add_sub_parameter(subcommand_parsers)
 
     # Parse the parameters
-    result_common = parse_common_parameter(argget)
-    result = parse_sub_parameter(argget)
+    args = argget.parse_args()
+    result_common = parse_common_parameter(args)
+    result = parse_sub_parameter(args)
     if result['ret'] == False:
         print(result['msg'])
         usage()

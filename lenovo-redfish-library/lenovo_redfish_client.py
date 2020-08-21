@@ -1,6 +1,6 @@
 ###
 #
-# Lenovo Redfish examples - Lenovo Redfish Client
+# Lenovo Redfish Tool - Base class of redfish client
 #
 # Copyright Notice:
 #
@@ -37,7 +37,7 @@ warnings.filterwarnings('ignore')
 #LOGGER = logging.getLogger(__name__)
 
 class LenovoRedfishClient(HttpClient):
-    """A client for accessing lenovo Redfish service"""
+    """Base class for accessing lenovo Redfish service"""
 
     def __init__(self, ip='', username='', password='', \
                                 configfile='config.ini', \
@@ -225,7 +225,6 @@ class LenovoRedfishClient(HttpClient):
             msg = "Failed to get %s. Error message: %s" % (suburl, repr(e))
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
-
 
     def _get_collection(self, suburl):
         data = list()

@@ -332,3 +332,60 @@ if __name__ == "__main__":
     sys.stdout.flush()
     os.system(msg)
     print("")
+
+    ############# Chassis ################
+    #####################################
+
+    msg = "python lenovo_chassis_client.py -i %s -u %s -p %s get_pci_inventory" % (ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
+    msg = "python lenovo_chassis_client.py -i %s -u %s -p %s get_nic_inventory" % (ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
+    msg = "python lenovo_chassis_client.py -i %s -u %s -p %s get_fan_inventory" % (ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
+    msg = "python lenovo_chassis_client.py -i %s -u %s -p %s get_temperatures_inventory" % (ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
+    msg = "python lenovo_chassis_client.py -i %s -u %s -p %s get_psu_inventory" % (ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
+    msg = "python lenovo_chassis_client.py -i %s -u %s -p %s get_power_redundancy" % (ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
+    msg = "python lenovo_chassis_client.py -i %s -u %s -p %s get_power_voltages" % (ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
+    msg = "python lenovo_chassis_client.py -i %s -u %s -p %s get_power_metrics" % (ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
+    msg = "python lenovo_chassis_client.py -i %s -u %s -p %s get_power_limit" % (ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")

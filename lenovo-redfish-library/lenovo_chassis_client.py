@@ -27,6 +27,8 @@ import traceback
 
 from lenovo_redfish_client import LenovoRedfishClient
 from utils import *
+from utils import add_common_parameter
+from utils import parse_common_parameter
 
 class LenovoChassisClient(LenovoRedfishClient):
     """A client for accessing lenovo system resource"""
@@ -40,6 +42,10 @@ class LenovoChassisClient(LenovoRedfishClient):
                     ip=ip, username=username, password=password, \
                     configfile=configfile, \
                     auth=auth)
+
+    #############################################
+    # functions for getting information.
+    #############################################
 
     def get_pci_inventory(self):
         """Get PCI devices inventory
@@ -220,32 +226,170 @@ class LenovoChassisClient(LenovoRedfishClient):
                 return {'ret': True, 'entries': member['PowerLimit']}
         return {'ret': False, 'msg': "No power limit exist."}
 
+    #############################################
+    # functions for setting information.
+    #############################################
 
+    # TBU
 
-# TBU
-if __name__ == "__main__":
-    # initiate LenovoRedfishClient object, specify ip/user/password/authentication.
-    #lenovo_redfish = LenovoChassisClient('10.245.39.153', 'renxulei', 'PASSW0RD12q', auth='session')
-    lenovo_redfish = LenovoChassisClient('10.245.39.251', 'renxulei', 'PASSW0RD12q', auth='session')
+cmd_list = {
+        "get_pci_inventory": {
+                'help': "Get pci devices' inventory", 
+                'args': []
+        },
+        "get_nic_inventory": {
+                'help': "Get nic devices' inventory",
+                'args': []
+        },
+        "get_fan_inventory": {
+                'help': "Get fan devices' inventory",
+                'args': []
+        },
+        "get_temperatures_inventory": {
+                'help': "Get temperature info",
+                'args': []
+        },
+        "get_psu_inventory": {
+                'help': "Get psu's inventory",
+                'args': []
+        },
+        "get_power_redundancy": {
+                'help': "Get power redundancy info",
+                'args': []
+        },
+        "get_power_voltages": {
+                'help': "Get power voltages' inventory",
+                'args': []
+        },
+        "get_power_metrics": {
+                'help': "Get power consumption's info",
+                'args': []
+        },
+        "get_power_limit": {
+                'help': "Get power limitation of whole system",
+                'args': []
+        }
+}
 
-    # setup connection with bmc.
-    lenovo_redfish.login()
+def add_sub_parameter(subcommand_parsers):
+    for func in cmd_list.keys():
+        parser_function = subcommand_parsers.add_parser(func, help=cmd_list[func]['help'])
+        for arg in cmd_list[func]['args']:
+            parser_function.add_argument(arg['argname'], type=arg['type'], nargs=arg['nargs'], required=arg['required'], help=arg['help'])
 
-    # performe management actions. get/set info.
-    result = lenovo_redfish.get_pci_inventory()
-    #result = lenovo_redfish.get_nic_inventory()
-    #result = lenovo_redfish.get_fan_inventory()
-    #result = lenovo_redfish.get_psu_inventory()
-    #result = lenovo_redfish.get_power_redundancy()
-    #result = lenovo_redfish.get_power_voltages()
-    #result = lenovo_redfish.get_power_metrics()
-    #result = lenovo_redfish.get_power_limit()
-    #result = lenovo_redfish.get_temperatures_inventory()
+def parse_sub_parameter(args):
+    """ return dict of parameter info"""
 
-    # after completed management action, you must logout to clear session. 
-    lenovo_redfish.logout()
+    parameter_info = {}
+    if args.subcommand_name not in cmd_list.keys():
+        result = {'ret': False, 'msg': "Subcommand is not correct."}
+        return result
+    else:
+        parameter_info["subcommand"] = args.subcommand_name
 
+    cmd = args.subcommand_name
+    if cmd == 'get_pci_inventory':
+        pass
+    elif cmd == 'get_nic_inventory':
+        pass
+    elif cmd == 'get_fan_inventory':
+        pass
+    elif cmd == 'get_temperatures_inventory':
+        pass
+    elif cmd == 'get_psu_inventory':
+        pass
+    elif cmd == 'get_power_redundancy':
+        pass
+    elif cmd == 'get_power_voltages':
+        pass
+    elif cmd == 'get_power_metrics':
+        pass
+    elif cmd == 'get_power_limit':
+        pass
+    else:
+        pass
+
+    result = {'ret': True, 'entries': parameter_info}
+    return result
+
+def run_subcommand(parameter_info):
+    """ return result of running subcommand """
+
+    client = LenovoChassisClient(ip=parameter_info['ip'], \
+                                 username=parameter_info['user'], \
+                                 password=parameter_info['password'], \
+                                 configfile=parameter_info['config'], \
+                                 auth=parameter_info['auth'])
+    try:
+        client.login()
+    except Exception as e:
+        LOGGER.debug("%s" % traceback.format_exc())
+        msg = "Failed to login. Error message: %s" % (repr(e))
+        LOGGER.error(msg)
+        LOGGER.debug(parameter_info)
+        return {'ret': False, 'msg': msg}
+
+    result = {}
+    cmd = parameter_info["subcommand"]
+    if cmd == 'get_pci_inventory':
+        result = client.get_pci_inventory()
+    elif cmd == 'get_nic_inventory':
+        result = client.get_nic_inventory()
+    elif cmd == 'get_fan_inventory':
+        result = client.get_fan_inventory()
+    elif cmd == 'get_temperatures_inventory':
+        result = client.get_temperatures_inventory()
+    elif cmd == 'get_psu_inventory':
+        result = client.get_psu_inventory()
+    elif cmd == 'get_power_redundancy':
+        result = client.get_power_redundancy()
+    elif cmd == 'get_power_voltages':
+        result = client.get_power_voltages()
+    elif cmd == 'get_power_metrics':
+        result = client.get_power_metrics()
+    elif cmd == 'get_power_limit':
+        result = client.get_power_limit()
+    else:
+        result = {'ret': False, 'msg': "Subcommand is not supported."}
+    
+    client.logout()
+    return result
+
+def usage():
+    print("  Chassis subcommands:")
+    for cmd in cmd_list.keys():
+        print("    %-42s Help:  %-120s" % (cmd, cmd_list[cmd]['help']))
+        for arg in cmd_list[cmd]['args']:
+            print("                %-30s Help:  %-120s" % (arg['argname'], arg['help']))
+    print('')
+
+def main(argv):
+    """Lenovo chassis client's main"""
+
+    argget = argparse.ArgumentParser(description="Lenovo Redfish Tool - Chassis Client")
+    add_common_parameter(argget)
+
+    subcommand_parsers = argget.add_subparsers(dest='subcommand_name', help='all subcommands')
+    add_sub_parameter(subcommand_parsers)
+
+    # Parse the parameters
+    args = argget.parse_args()
+    result_common = parse_common_parameter(args)
+    result = parse_sub_parameter(args)
+    if result['ret'] == False:
+        print(result['msg'])
+        usage()
+        return
+    result['entries'].update(result_common['entries'])
+    parameter_info = result['entries']
+
+    result = run_subcommand(parameter_info)
     if 'msg' in result:
         print(result['msg'])
     if 'entries' in result:
         print(json.dumps(result['entries'], sort_keys=True, indent=2))
+
+
+if __name__ == "__main__":
+
+    main(sys.argv)
