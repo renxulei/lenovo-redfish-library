@@ -36,12 +36,12 @@ warnings.filterwarnings('ignore')
 
 #LOGGER = logging.getLogger(__name__)
 
-class LenovoRedfishClient(HttpClient):
+class RedfishBase(HttpClient):
     """Base class for accessing lenovo Redfish service"""
 
     def __init__(self, ip='', username='', password='',
                  configfile='config.ini', auth=''):
-        """Initialize LenovoRedfishClient
+        """Initialize RedfishBase
 
         :param ip: The url of the remote system
         :type ip: str
@@ -94,7 +94,7 @@ class LenovoRedfishClient(HttpClient):
             raise Exception("Please check ip, user and password are correct.")
 
         login_host = "https://" + self._ip
-        super(LenovoRedfishClient, self).__init__(
+        super(RedfishBase, self).__init__(
             base_url=login_host, 
             username=self._user, password=self._password, 
             default_prefix='/redfish/v1', capath=None, 
@@ -182,13 +182,13 @@ class LenovoRedfishClient(HttpClient):
         if changed:
             self.set_session_key(None)
             self.set_authorization_key(None)
-            return super(LenovoRedfishClient, self).login(username=self._user, password=self._password, auth=self._auth)
+            return super(RedfishBase, self).login(username=self._user, password=self._password, auth=self._auth)
 
         if (self.get_session_key() != None and self._auth == 'session') or \
            (self.get_authorization_key() != None and self._auth == 'basic'):
             pass
         else:
-            return super(LenovoRedfishClient, self).login(username=self._user, password=self._password, auth=self._auth)
+            return super(RedfishBase, self).login(username=self._user, password=self._password, auth=self._auth)
     
     def logout(self):
         # if long_connection is enabled, keep current session.
@@ -200,7 +200,7 @@ class LenovoRedfishClient(HttpClient):
 
         # Logout of the current session. If logout failed, clear sessionkey or authorizationkey anyway.
         try:
-            super(LenovoRedfishClient, self).logout()
+            super(RedfishBase, self).logout()
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
             LOGGER.error("Failed to log out. Error message: %s" % repr(e))
