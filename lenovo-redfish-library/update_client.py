@@ -162,7 +162,10 @@ class UpdateClient(RedfishBase):
                         return result
 
                     headers = {"Content-Type":"application/octet-stream"}
-                    headers['X-Auth-Token'] = self.get_session_key()
+                    if self._auth == 'session':
+                        headers["X-Auth-Token"] = self.get_session_key()
+                    else:
+                        headers["Authorization"] = self.get_authorization_key()
                     files = {'data-binary':open(file_path,'rb')}
                     if self._cafile is not None and self._cafile != "":
                         response = requests.post(firmware_update_url, headers=headers, files=files, verify=self._cafile)
@@ -259,10 +262,9 @@ class UpdateClient(RedfishBase):
                     headers = {}
                     if self._auth == 'session':
                         headers["X-Auth-Token"] = self.get_session_key()
-                        response = requests.post(multipart_uri, headers=headers, files=files, verify=False)
                     else:
                         headers["Authorization"] = self.get_authorization_key()
-                        response = requests.post(multipart_uri, headers=headers, files=files, verify=False)
+                    response = requests.post(multipart_uri, headers=headers, files=files, verify=False)
                     response_code = response.status_code
                     
                     f_parameters.close()
