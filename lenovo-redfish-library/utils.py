@@ -109,14 +109,15 @@ def read_config(config_file):
     :type config_file: string 
     """
 
-    if (not os.path.exists(config_file)):
-        result = {'ret': False, 'msg': "File '%s' does not exist." % config_file}
-        return result
     cfg = configparser.ConfigParser()
     try:
         cur_dir = os.path.dirname(os.path.abspath(__file__))
         if os.sep not in config_file:
             config_file = cur_dir + os.sep + config_file
+        else:
+            if (not os.path.exists(config_file)):
+                result = {'ret': False, 'msg': "File '%s' does not exist." % config_file}
+                return result
 
         config_ini_info = {}
         cfg.read(config_file)
