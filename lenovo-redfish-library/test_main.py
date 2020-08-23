@@ -320,7 +320,7 @@ if __name__ == "__main__":
     msg = "python main.py -i %s -u %s -p %s get_firmware_inventory" % (ip, user, password)
     print(msg)
     sys.stdout.flush()
-    # os.system(msg)
+    os.system(msg)
     print("")
 
     fsdir = "D:\\Workdata20190427\\work\\Task\\46-Redfish\\FW-Package\\20C\\Intel"
