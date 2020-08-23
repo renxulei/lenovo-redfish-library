@@ -25,10 +25,10 @@ import logging
 import json
 import traceback 
 
-from .redfish_base import RedfishBase
-from .utils import *
-from .utils import add_common_parameter
-from .utils import parse_common_parameter
+from redfish_base import RedfishBase
+from utils import *
+from utils import add_common_parameter
+from utils import parse_common_parameter
 
 class ChassisClient(RedfishBase):
     """A client for accessing lenovo system resource"""
@@ -52,25 +52,11 @@ class ChassisClient(RedfishBase):
         """
         result = {}
         try:
-            list_pci_info = []
-            chassis_url = self._find_chassis_resource()
+            chassis_url = self._find_chassis_resource()        
             result_pci = self._get_collection(chassis_url + '/PCIeDevices')
             if result_pci['ret'] == False:
-                # Try to find PCIeDevices under ComputerSystem.
-                system_url = self._find_system_resource()
-                result = self._get_url(system_url)
-                if result['ret'] == False:
-                    return result
-                if 'PCIeDevices' not in result['entries'].keys():
-                    return {'ret': False, 'msg': "Failed to find 'PCIeDevices' in ComputerSystem."}
-                for member in result['entries']['PCIeDevices']:
-                    result = self._get_url(member['@odata.id'])
-                    if result['ret'] == False:
-                        return result
-                    data_filtered = propertyFilter(result['entries'])
-                    list_pci_info.append(data_filtered)
-            else:
-                list_pci_info = propertyFilter(result_pci['entries'])
+                return result_pci
+            list_pci_info = propertyFilter(result_pci['entries'])
 
             for member in list_pci_info:
                 if 'PCIeFunctions' in member:
@@ -245,7 +231,7 @@ class ChassisClient(RedfishBase):
 
     # ToDo
 
-chassis_cmd_list = {
+cmd_list = {
         "get_pci_inventory": {
                 'help': "Get pci devices' inventory", 
                 'args': []
@@ -284,20 +270,20 @@ chassis_cmd_list = {
         }
 }
 
-def add_chassis_parameter(subcommand_parsers):
-    for func in chassis_cmd_list.keys():
-        parser_function = subcommand_parsers.add_parser(func, help=chassis_cmd_list[func]['help'])
-        for arg in chassis_cmd_list[func]['args']:
+def add_sub_parameter(subcommand_parsers):
+    for func in cmd_list.keys():
+        parser_function = subcommand_parsers.add_parser(func, help=cmd_list[func]['help'])
+        for arg in cmd_list[func]['args']:
             parser_function.add_argument(arg['argname'], type=arg['type'], nargs=arg['nargs'], required=arg['required'], help=arg['help'])
 
-def run_chassis_subcommand(args):
+def run_subcommand(args):
     """ return result of running subcommand """
 
     parameter_info = {}
     parameter_info = parse_common_parameter(args)
 
     cmd = args.subcommand_name
-    if cmd not in chassis_cmd_list.keys():
+    if cmd not in cmd_list.keys():
         result = {'ret': False, 'msg': "Subcommand is not correct."}
         usage()
         return result
@@ -352,11 +338,11 @@ def run_chassis_subcommand(args):
     client.logout()
     return result
 
-def chassis_usage():
+def usage():
     print("  Chassis subcommands:")
-    for cmd in chassis_cmd_list.keys():
-        print("    %-42s Help:  %-120s" % (cmd, chassis_cmd_list[cmd]['help']))
-        for arg in chassis_cmd_list[cmd]['args']:
+    for cmd in cmd_list.keys():
+        print("    %-42s Help:  %-120s" % (cmd, cmd_list[cmd]['help']))
+        for arg in cmd_list[cmd]['args']:
             print("                %-30s Help:  %-120s" % (arg['argname'], arg['help']))
     print('')
 
@@ -367,11 +353,11 @@ def main(argv):
     add_common_parameter(argget)
 
     subcommand_parsers = argget.add_subparsers(dest='subcommand_name', help='all subcommands')
-    add_chassis_parameter(subcommand_parsers)
+    add_sub_parameter(subcommand_parsers)
 
     # Parse the parameters
     args = argget.parse_args()
-    result = run_chassis_subcommand(args)
+    result = run_subcommand(args)
     if 'msg' in result:
         print(result['msg'])
     if 'entries' in result:

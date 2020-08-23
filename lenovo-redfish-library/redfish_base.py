@@ -30,7 +30,7 @@ import requests
 import time
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 from redfish.rest.v1 import HttpClient
-from .utils import *
+from utils import *
 
 warnings.filterwarnings('ignore')
 

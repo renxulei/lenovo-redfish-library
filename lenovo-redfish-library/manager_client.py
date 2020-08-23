@@ -27,10 +27,10 @@ import requests
 import time
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
-from .redfish_base import RedfishBase
-from .utils import *
-from .utils import add_common_parameter
-from .utils import parse_common_parameter
+from redfish_base import RedfishBase
+from utils import *
+from utils import add_common_parameter
+from utils import parse_common_parameter
 
 class ManagerClient(RedfishBase):
     """A client for managing bmc"""
@@ -1083,7 +1083,7 @@ class ManagerClient(RedfishBase):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
-manager_cmd_list = {
+cmd_list = {
         "get_bmc_inventory": {
                 'help': "Get bmc's inventory", 
                 'args': []
@@ -1183,20 +1183,20 @@ manager_cmd_list = {
         }
 }
 
-def add_manager_parameter(subcommand_parsers):    
-    for func in manager_cmd_list.keys():
-        parser_function = subcommand_parsers.add_parser(func, help=manager_cmd_list[func]['help'])
-        for arg in manager_cmd_list[func]['args']:
+def add_sub_parameter(subcommand_parsers):    
+    for func in cmd_list.keys():
+        parser_function = subcommand_parsers.add_parser(func, help=cmd_list[func]['help'])
+        for arg in cmd_list[func]['args']:
             parser_function.add_argument(arg['argname'], type=arg['type'], nargs=arg['nargs'], required=arg['required'], help=arg['help'])
 
-def run_manager_subcommand(args):
+def run_subcommand(args):
     """ return result of running subcommand """
 
     parameter_info = {}
     parameter_info = parse_common_parameter(args)
 
     cmd = args.subcommand_name
-    if cmd not in manager_cmd_list.keys():
+    if cmd not in cmd_list.keys():
         result = {'ret': False, 'msg': "Subcommand is not correct."}
         usage()
         return result
@@ -1320,11 +1320,11 @@ def run_manager_subcommand(args):
     client.logout()
     return result
 
-def manager_usage():
+def usage():
     print("  Manager subcommands:")
-    for cmd in manager_cmd_list.keys():
-        print("    %-42s Help:  %-120s" % (cmd, manager_cmd_list[cmd]['help']))
-        for arg in manager_cmd_list[cmd]['args']:
+    for cmd in cmd_list.keys():
+        print("    %-42s Help:  %-120s" % (cmd, cmd_list[cmd]['help']))
+        for arg in cmd_list[cmd]['args']:
             print("                %-30s Help:  %-120s" % (arg['argname'], arg['help']))
     print('')
 
@@ -1335,11 +1335,11 @@ def main(argv):
     add_common_parameter(argget)
 
     subcommand_parsers = argget.add_subparsers(dest='subcommand_name', help='all subcommands')
-    add_manager_parameter(subcommand_parsers)
+    add_sub_parameter(subcommand_parsers)
 
     # Parse the parameters
     args = argget.parse_args()
-    result = run_manager_subcommand(args)
+    result = run_subcommand(args)
     if 'msg' in result:
         print(result['msg'])
     if 'entries' in result:
