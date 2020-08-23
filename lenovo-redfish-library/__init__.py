@@ -1,7 +1,6 @@
-#!/usr/bin/python
 ###
 #
-# Lenovo Redfish examples - Add event subscriptions
+# Lenovo Redfish Library - Client for server management
 #
 # Copyright Notice:
 #
