@@ -548,8 +548,8 @@ class ManagerClient(RedfishBase):
             if bmc_type == 'TSM':
                 if 'Actions' in dict_bmc and 'Oem' in dict_bmc['Actions'] and \
                    '#Manager.DownloadServiceData' in dict_bmc['Actions']['Oem']:
-                    if fsprotocol.upper() != "HTTP":
-                        msg = "Target Server only supports HTTP protocol, please use HTTP file server to download server data."
+                    if fsprotocol == None or fsprotocol.upper() != "HTTP":
+                        msg = "Target Server only supports HTTP protocol, please specify HTTP file server to download server data."
                         result = {"ret": False, "msg": msg}
                         return result
                     body = {}
@@ -664,7 +664,7 @@ class ManagerClient(RedfishBase):
 
             if bmc_type == 'XCC':
                 protocol_scope = ['NFS', 'HTTP']
-                if fsprotocol.upper() not in protocol_scope:
+                if fsprotocol == None or fsprotocol.upper() not in protocol_scope:
                     result = {'ret': False, 'msg': "Please specify correct protocol. available protocol is '%s'." % protocol_scope}
                     return result
                 
@@ -699,7 +699,7 @@ class ManagerClient(RedfishBase):
 
             if bmc_type == 'TSM':
                 protocol_scope = ['NFS']
-                if fsprotocol.upper() not in protocol_scope:
+                if fsprotocol == None or fsprotocol.upper() not in protocol_scope:
                     result = {'ret': False, 'msg': "Please specify correct protocol. available protocol is '%s'." % protocol_scope}
                     return result
                 if not image.endswith(".iso") and not image.endswith(".nrg"):
@@ -971,7 +971,7 @@ class ManagerClient(RedfishBase):
                 body['folderPath'] = httpdir.strip("/")
                 export_uri = 'http://' + httpip + ':' + str(httpport) + '/' + httpdir
 
-                restore_url = result['entries']['Actions']['Oem']['#Manager.Restore']['target']                
+                restore_url = result['entries']['Actions']['Oem']['#Manager.Restore']['target']              
                 print("Start restoring bmc configuration, may take 1~5 minutes ...")
                 response = self.post(restore_url, body=body)
                 if response.status not in [202]:
@@ -979,7 +979,6 @@ class ManagerClient(RedfishBase):
                               (restore_url, response.status, response.text)}
                     LOGGER.error(result['msg'])
                     return result
-
                 task_uri = response.dict['@odata.id']
                 result = self._task_monitor(task_uri)
                 self.delete(task_uri, None)
