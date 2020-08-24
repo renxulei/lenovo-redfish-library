@@ -278,7 +278,7 @@ if __name__ == "__main__":
     os.system(msg)
     print("")
 
-    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s lenovo_bmc_config_backup --backuppasswd Aa1234567 --httpip 10.103.62.175 --httpport 8080 --httpdir upload/renxulei" % (py_name, ip, user, password)
+    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s lenovo_bmc_config_backup --backup_password Aa1234567 --httpip 10.103.62.175 --httpport 8080 --httpdir upload/renxulei" % (py_name, ip, user, password)
     print(msg)
     sys.stdout.flush()
     os.system(msg)
