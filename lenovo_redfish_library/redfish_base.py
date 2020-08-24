@@ -1,6 +1,6 @@
 ###
 #
-# Lenovo Redfish Tool - Base class of redfish client
+# Lenovo Redfish Library - Base class of redfish client
 #
 # Copyright Notice:
 #

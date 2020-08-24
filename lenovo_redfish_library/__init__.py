@@ -1,6 +1,6 @@
 ###
 #
-# Lenovo Redfish Library - Client for server management
+# Lenovo Redfish Library - Library for server management via Redfish
 #
 # Copyright Notice:
 #

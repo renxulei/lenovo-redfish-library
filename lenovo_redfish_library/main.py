@@ -1,6 +1,6 @@
 ###
 #
-# Lenovo Redfish Library - Main
+# Lenovo Redfish Library - Main module for commandline supoort
 #
 # Copyright Notice:
 #

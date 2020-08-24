@@ -1,6 +1,6 @@
 ###
 #
-# Lenovo Redfish Client - Manager Client
+# Lenovo Redfish Library - ManagerClient Class
 #
 # Copyright Notice:
 #
@@ -49,8 +49,8 @@ class ManagerClient(RedfishBase):
     #############################################
 
     def get_bmc_inventory(self):
-        """Get BMC inventory    
-        :returns: returns Dict of BMC inventory when succeeded or error message when failed
+        """Get bmc inventory    
+        :returns: returns Dict of bmc inventory when succeeded or error message when failed
         """
         result = {}
         try:
@@ -92,8 +92,8 @@ class ManagerClient(RedfishBase):
             return {'ret': False, 'msg': msg}
 
     def get_bmc_networkprotocol(self):
-        """Get BMC network protocol which provide BMC's network services info.      
-        :returns: returns Dict of BMC networkprotocol when succeeded or error message when failed
+        """Get bmc network protocol which provide bmc's network services info.      
+        :returns: returns Dict of bmc networkprotocol when succeeded or error message when failed
         """
         result = {}
         try:
@@ -110,8 +110,8 @@ class ManagerClient(RedfishBase):
             return {'ret': False, 'msg': msg}
 
     def get_bmc_serialinterfaces(self):
-        """Get BMC Serial Interfaces    
-        :returns: returns List of BMC serial interfaces when succeeded or error message when failed
+        """Get bmc serial interfaces    
+        :returns: returns List of bmc serial interfaces when succeeded or error message when failed
         """
         result = {}
         try:
@@ -132,8 +132,8 @@ class ManagerClient(RedfishBase):
             return {'ret': False, 'msg': msg}
 
     def get_bmc_ethernet_interfaces(self):
-        """Get BMC ethernet interfaces
-        :returns: returns List of BMC nic when succeeded or error message when failed
+        """Get bmc ethernet interfaces
+        :returns: returns List of bmc nic when succeeded or error message when failed
         """
         result = {}
         try:
@@ -154,8 +154,8 @@ class ManagerClient(RedfishBase):
             return {'ret': False, 'msg': msg}
 
     def get_bmc_hostinterfaces(self):
-        """Get BMC Host Interfaces    
-        :returns: returns List of BMC host interfaces when succeeded or error message when failed
+        """Get bmc Host Interfaces    
+        :returns: returns List of bmc host interfaces when succeeded or error message when failed
         """
         result = {}
         try:
@@ -188,7 +188,7 @@ class ManagerClient(RedfishBase):
             return {'ret': False, 'msg': msg}
 
     def get_bmc_ntp(self):
-        """Get BMC inventory    
+        """Get bmc ntp info    
         :returns: returns Dict of bmc ntp when succeeded or error message when failed
         """
         result = {}
@@ -471,7 +471,7 @@ class ManagerClient(RedfishBase):
             return {'ret': False, 'msg': msg}
 
     def lenovo_export_ffdc(self, data_type=None, fsprotocol=None, fsip=None, fsport=None, fsdir=None, fsusername=None, fspassword=None):
-        """Update firmware.
+        """Export FFDC info.
         :params data_type: only for XCC. Data collection type: ProcessorDump, ServiceDataFile or BootPOSTDump.
         :type data_type: string
         :params fsprotocol: transfer protocol. For XCC: SFTP/TFTP/None(local save). Fox TSM: HTTP only.
@@ -993,7 +993,7 @@ class ManagerClient(RedfishBase):
             return {'ret': False, 'msg': msg}
 
     def reset_bmc(self, reset_type=None):
-        """Restore bmc configuration
+        """Reset bmc
         :params reset_type: for XCC: ['GracefulRestart', 'ForceRestart']. for TSM: ['ForceRestart']
         :type reset_type: string
         :returns: returns the result of reseting bmc

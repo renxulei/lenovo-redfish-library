@@ -1,6 +1,6 @@
 ###
 #
-# Lenovo Redfish examples - Add event subscriptions
+# Lenovo Redfish Library - ChassisClient Class
 #
 # Copyright Notice:
 #
@@ -242,7 +242,6 @@ class ChassisClient(RedfishBase):
     #############################################
     # functions for setting information.
     #############################################
-
     # ToDo
 
 chassis_cmd_list = {

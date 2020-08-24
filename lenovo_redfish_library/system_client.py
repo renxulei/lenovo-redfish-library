@@ -1,6 +1,6 @@
 ###
 #
-# Lenovo Redfish Client - System Client
+# Lenovo Redfish Library - SystemClient Class
 #
 # Copyright Notice:
 #
@@ -332,7 +332,7 @@ class SystemClient(RedfishBase):
             return {'ret': False, 'msg': msg}
 
     def get_memory_inventory(self, id=None):
-        """Get cpu inventory
+        """Get memory inventory
         :params id: Memory member id
         :type id: None or String of id
         :returns: returns List of all memory inventory when succeeded or error message when failed

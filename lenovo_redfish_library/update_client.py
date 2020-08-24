@@ -1,6 +1,6 @@
 ###
 #
-# Lenovo Redfish Client - Update Client
+# Lenovo Redfish Library - UpdateClient Class
 #
 # Copyright Notice:
 #

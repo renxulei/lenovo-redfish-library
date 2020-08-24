@@ -1,4 +1,7 @@
 ###
+#
+# Lenovo Redfish Library - Utility module
+#
 # Copyright Notice:
 #
 # Copyright 2020 Lenovo Corporation
@@ -22,19 +25,19 @@ import argparse
 import configparser
 import logging
 
-def redfish_logger(file_name, log_format, log_level=logging.ERROR):
+def client_logger(file_name, log_format, log_level=logging.ERROR):
     formatter = logging.Formatter(log_format)
-    fh = logging.FileHandler(file_name)
-    fh.setFormatter(formatter)
+    handler = logging.FileHandler(file_name)
+    handler.setFormatter(formatter)
     logger = logging.getLogger(__name__)
-    logger.addHandler(fh)
+    logger.addHandler(handler)
     logger.setLevel(log_level)
     return logger
 
 #Config logger used by Lenovo Redfish Client
-LOGGERFILE = "LenovoRedfishClient.log"
-LOGGERFORMAT = "%(asctime)s - %(name)s - %(lineno)d - %(levelname)s - %(message)s"
-LOGGER = redfish_logger(LOGGERFILE, LOGGERFORMAT, logging.DEBUG)
+LOGFILE = "LenovoRedfishClient.log"
+LOGFORMAT = "%(asctime)s - %(name)s - %(lineno)d - %(levelname)s - %(message)s"
+LOGGER = client_logger(LOGFILE, LOGFORMAT, logging.DEBUG)
 
 common_property_excluded = [
         "@odata.context", "@odata.id", "@odata.type",
