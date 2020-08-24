@@ -25,6 +25,7 @@ import sys
 
 if __name__ == "__main__":
 
+    # Change this according to the server you will test.
     ip = "10.245.39.251"
     user = "renxulei"
     password = "PASSW0RD12q"
