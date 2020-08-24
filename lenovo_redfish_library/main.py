@@ -1,6 +1,6 @@
 ###
 #
-# Lenovo Redfish examples - Lenovo Redfish Tool
+# Lenovo Redfish Library - Main
 #
 # Copyright Notice:
 #
@@ -24,20 +24,20 @@ import argparse
 import os
 import json
 
-from utils import *
-from utils import add_common_parameter
-from utils import parse_common_parameter
-import system_client
-import manager_client
-import chassis_client
-import update_client
+from .utils import *
+from .utils import add_common_parameter
+from .utils import parse_common_parameter
+from .system_client import *
+from .manager_client import *
+from .chassis_client import *
+from .update_client import *
 
 
 def usage():
-    system_client.usage()
-    manager_client.usage()
-    chassis_client.usage()
-    update_client.usage()
+    system_usage()
+    manager_usage()
+    chassis_usage()
+    update_usage()
 
 def main(argv):
     """Lenovo Redfish client's main"""
@@ -46,22 +46,22 @@ def main(argv):
     add_common_parameter(argget)
     
     subcommand_parsers = argget.add_subparsers(dest='subcommand_name', help='all subcommands')
-    system_client.add_sub_parameter(subcommand_parsers)
-    manager_client.add_sub_parameter(subcommand_parsers)
-    chassis_client.add_sub_parameter(subcommand_parsers)
-    update_client.add_sub_parameter(subcommand_parsers)
+    add_system_parameter(subcommand_parsers)
+    add_manager_parameter(subcommand_parsers)
+    add_chassis_parameter(subcommand_parsers)
+    add_update_parameter(subcommand_parsers)
 
     # Parse the parameters
     args = argget.parse_args()
 
-    if args.subcommand_name in system_client.cmd_list.keys():
-        result = system_client.run_subcommand(args)
-    elif args.subcommand_name in manager_client.cmd_list.keys():
-        result = manager_client.run_subcommand(args)
-    elif args.subcommand_name in chassis_client.cmd_list.keys():
-        result = chassis_client.run_subcommand(args)
-    elif args.subcommand_name in update_client.cmd_list.keys():
-        result = update_client.run_subcommand(args)
+    if args.subcommand_name in system_cmd_list.keys():
+        result = run_system_subcommand(args)
+    elif args.subcommand_name in manager_cmd_list.keys():
+        result = run_manager_subcommand(args)
+    elif args.subcommand_name in chassis_cmd_list.keys():
+        result = run_chassis_subcommand(args)
+    elif args.subcommand_name in update_cmd_list.keys():
+        result = run_update_subcommand(args)
     else:
         usage()
         result = {'ret': False, 'msg': "Please specify correct subcommand."}

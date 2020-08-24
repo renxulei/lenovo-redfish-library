@@ -1,7 +1,7 @@
 #!/usr/bin/python
 ###
 #
-# Lenovo Redfish examples - Add event subscriptions
+# Lenovo Redfish Tool - Redfish client
 #
 # Copyright Notice:
 #
@@ -21,22 +21,9 @@
 ###
 
 import sys
-import os
-import json
 
-#sys.path.append(os.path.dirname(os.path.abspath(__file__)) + os.sep + 'lenovo_redfish_library')
-
-from lenovo_redfish_library.main import main
-from lenovo_redfish_library.manager_client import ManagerClient
-import sys
+from lenovo_redfish_library import *
 
 if __name__ == "__main__":
-    client = ManagerClient(ip='10.245.39.251', username='renxulei', password='PASSW0RD12q')
-    client.login()
-    result = client.get_bmc_inventory()
-    if 'msg' in result:
-        print(result['msg'])
-    if 'entries' in result:
-        print(json.dumps(result['entries'], sort_keys=True, indent=2))    
 
     main(sys.argv)
