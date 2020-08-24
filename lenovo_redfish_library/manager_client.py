@@ -855,7 +855,7 @@ class ManagerClient(RedfishBase):
             if bmc_type == 'TSM':
                 if httpip is None or httpdir is None:
                     msg = "This product only supports HTTP protocol, please specify httpip and httpdir."
-                    result = {"ret": False, "msg": error_message}
+                    result = {"ret": False, "msg": msg}
                     return result
                 backup_target_url = result['entries']['Actions']['Oem']['#Manager.Backup']['target']
                 body = {}
@@ -961,7 +961,7 @@ class ManagerClient(RedfishBase):
             if bmc_type == 'TSM':
                 if httpip is None or httpdir is None or backup_file is None:
                     msg = "This product only supports HTTP protocol, please specify httpip, httpdir and backup_file."
-                    result = {"ret": False, "msg": error_message}
+                    result = {"ret": False, "msg": msg}
                     return result
                 body = {}
                 body['RestoreFileName'] = backup_file

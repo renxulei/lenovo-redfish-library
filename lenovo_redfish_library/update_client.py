@@ -75,45 +75,6 @@ class UpdateClient(RedfishBase):
     # functions for updating firmware.
     #############################################
 
-    def _task_monitor(self, task_uri, wait_time=10):
-        """Monitor task status
-        :params task_uri: task uri for tracking the update status.
-        :type task_uri: string
-        :params wait_time: maximum time(minutes) to wait the task complete. 
-        :type wait_time: int
-        :returns: returns the task state and task information.
-        """
-        END_TASK_STATE = ["Cancelled", "Completed", "Exception", "Killed", "Interrupted", "Suspended", "Done", "Failed when Flashing Image."]
-        time_start=time.time()
-        while True:
-            response_task_uri = self.get(task_uri, None)
-            if response_task_uri.status in [200, 202]:
-                if "TaskState" in response_task_uri.dict:
-                    task_state = response_task_uri.dict["TaskState"]
-                else:
-                    result = {'ret': False, 'msg': "Failed to find task state.", 'entries': response_task_uri.dict}
-                    return result
-                # Monitor task status until the task terminates
-                if task_state in END_TASK_STATE:
-                    if task_state == "Completed":
-                        result = {'ret': True, 'msg': "Task completed successfully.", 'entries': response_task_uri.dict}
-                    else:
-                        result = {'ret': False, 'msg': "Task completed abnormally.", 'entries': response_task_uri.dict}
-                    return result
-                else:
-                    time_now = time.time()
-                    # wait for max 10 minutes to avoid endless loop.
-                    wait_seconds = wait_time * 60
-                    if time_now - time_start > wait_seconds:
-                        result = {'ret': False, 'msg':  "Task is not completed in %s minutes expected." % wait_time, 'entries': response_task_uri.dict}
-                        return result
-                    time.sleep(10)
-            else:
-                result = {'ret': False, 'msg': "Failed to get the info of task '%s'. Error code is %s. Error message is %s. " % \
-                          (task_uri, response_task_uri.status, response_task_uri.text)}
-                LOGGER.error(result['msg'])
-                return result
-
     def lenovo_update_firmware(self, image, target=None, fsprotocol='HTTPPUSH', fsip=None, fsdir=None, fsusername=None, fspassword=None):
         """Update firmware.
         :params targets: target. For XCC: only 'BMC-Backup'. For TSM: only 'BMC' or 'UEFI'.
