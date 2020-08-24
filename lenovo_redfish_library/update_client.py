@@ -389,32 +389,3 @@ def update_usage():
         for arg in update_cmd_list[cmd]['args']:
             print("                %-30s Help:  %-120s" % (arg['argname'], arg['help']))
     print('')
-
-def main(argv):
-    """Lenovo update client's main"""
-
-    argget = argparse.ArgumentParser(description="Lenovo Redfish Tool - Update Client")
-    add_common_parameter(argget)
-
-    subcommand_parsers = argget.add_subparsers(dest='subcommand_name', help='all subcommands')
-    add_update_parameter(subcommand_parsers)
-
-    # Parse the parameters
-    args = argget.parse_args()
-    result = run_update_subcommand(args)
-    if 'msg' in result:
-        print(result['msg'])
-    if 'entries' in result:
-        print(json.dumps(result['entries'], sort_keys=True, indent=2))
-
-
-if __name__ == "__main__":
-
-    main(sys.argv)
-
-    # AMD
-    #image_uefi = "lnvgy_fw_uefi_cfe117k-5.10_anyos_32-64.rom"
-    #image_bmc = "lnvgy_fw_bmc_ambt11n-2.53_anyos_arm.hpm"
-    #fsdir = "D:\\Workdata20190427\\work\\Task\\46-Redfish\\FW-Package\\20C\\AMD"
-    #result = lenovo_redfish.lenovo_update_firmware(image=image_uefi, target='UEFI', fsdir=fsdir)
-    #result = lenovo_redfish.lenovo_update_firmware(image=image_bmc, target='BMC', fsdir=fsdir)

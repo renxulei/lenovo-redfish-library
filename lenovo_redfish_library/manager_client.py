@@ -1328,37 +1328,3 @@ def manager_usage():
         for arg in manager_cmd_list[cmd]['args']:
             print("                %-30s Help:  %-120s" % (arg['argname'], arg['help']))
     print('')
-
-def main(argv):
-    """Lenovo manager client's main"""
-
-    argget = argparse.ArgumentParser(description="Lenovo Redfish Tool - Manager Client")
-    add_common_parameter(argget)
-
-    subcommand_parsers = argget.add_subparsers(dest='subcommand_name', help='all subcommands')
-    add_manager_parameter(subcommand_parsers)
-
-    # Parse the parameters
-    args = argget.parse_args()
-    result = run_manager_subcommand(args)
-    if 'msg' in result:
-        print(result['msg'])
-    if 'entries' in result:
-        print(json.dumps(result['entries'], sort_keys=True, indent=2))
-
-
-if __name__ == "__main__":
-
-    main(sys.argv)
-
-    # performe management actions. get/set info.
-    #result = lenovo_redfish.set_bmc_networkprotocol('DHCPv6', 0)
-    #ntp_server_list = ['2.2.2.2','3.3.3.3']
-    #result = lenovo_redfish.set_bmc_ntp(ntp_server_list, 0)
-
-    # AMD
-    #result = lenovo_redfish.lenovo_export_ffdc(fsdir='/upload', fsprotocol='HTTP', fsip='10.103.62.175')
-    #result = lenovo_redfish.lenovo_mount_virtual_media(image='bios.iso', fsdir='/home/nfs', fsprotocol='NFS', fsip='10.245.100.159')
-    #result = lenovo_redfish.lenovo_umount_virtual_media('bios.iso')
-    #result = lenovo_redfish.lenovo_bmc_config_backup(backup_password='Aa1234567', httpip='10.103.62.175', httpport='8080', httpdir='upload/renxulei')
-    #result = lenovo_redfish.lenovo_bmc_config_restore(backup_password='Aa1234567', backup_file='bmc-config.bin', httpip='10.103.62.175', httpport='8080', httpdir='upload/renxulei')

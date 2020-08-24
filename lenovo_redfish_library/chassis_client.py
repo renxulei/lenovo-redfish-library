@@ -358,25 +358,3 @@ def chassis_usage():
         for arg in chassis_cmd_list[cmd]['args']:
             print("                %-30s Help:  %-120s" % (arg['argname'], arg['help']))
     print('')
-
-def main(argv):
-    """Lenovo chassis client's main"""
-
-    argget = argparse.ArgumentParser(description="Lenovo Redfish Tool - Chassis Client")
-    add_common_parameter(argget)
-
-    subcommand_parsers = argget.add_subparsers(dest='subcommand_name', help='all subcommands')
-    add_chassis_parameter(subcommand_parsers)
-
-    # Parse the parameters
-    args = argget.parse_args()
-    result = run_chassis_subcommand(args)
-    if 'msg' in result:
-        print(result['msg'])
-    if 'entries' in result:
-        print(json.dumps(result['entries'], sort_keys=True, indent=2))
-
-
-if __name__ == "__main__":
-
-    main(sys.argv)
