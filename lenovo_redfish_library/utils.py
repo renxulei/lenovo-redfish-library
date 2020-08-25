@@ -37,7 +37,7 @@ def client_logger(file_name, log_format, log_level=logging.ERROR):
 #Config logger used by Lenovo Redfish Client
 LOGFILE = "LenovoRedfishClient.log"
 LOGFORMAT = "%(asctime)s - %(name)s - %(lineno)d - %(levelname)s - %(message)s"
-LOGGER = client_logger(LOGFILE, LOGFORMAT, logging.DEBUG)
+LOGGER = client_logger(LOGFILE, LOGFORMAT, logging.ERROR)
 
 common_property_excluded = [
         "@odata.context", "@odata.id", "@odata.type",

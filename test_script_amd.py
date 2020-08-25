@@ -254,13 +254,7 @@ if __name__ == "__main__":
     os.system(msg)
     print("")
 
-    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s lenovo_export_ffdc" % (py_name, ip, user, password)
-    print(msg)
-    sys.stdout.flush()
-    os.system(msg)
-    print("")
-
-    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s lenovo_export_ffdc --fsprotocol HTTP --fsip 10.103.62.175 --fsport 8080 --fsdir upload/renxulei" % (py_name, ip, user, password)
+    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s lenovo_export_ffdc --fsprotocol HTTP --fsip 10.103.62.175 --fsport 8080 --fsdir upload" % (py_name, ip, user, password)
     print(msg)
     sys.stdout.flush()
     os.system(msg)
@@ -278,17 +272,20 @@ if __name__ == "__main__":
     os.system(msg)
     print("")
 
-    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s lenovo_bmc_config_backup --backup_password Aa1234567 --httpip 10.103.62.175 --httpport 8080 --httpdir upload/renxulei" % (py_name, ip, user, password)
+    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s lenovo_bmc_config_backup --backup_password Aa1234567 --httpip 10.103.62.175 --httpport 8080 --httpdir upload" % (py_name, ip, user, password)
     print(msg)
     sys.stdout.flush()
     os.system(msg)
     print("")
 
-    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s lenovo_bmc_config_restore --backup_password Aa1234567 --backup_file bmc-config.bin --httpip 10.103.62.175 --httpport 8080 --httpdir upload/renxulei" % (py_name, ip, user, password)
+    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s lenovo_bmc_config_restore --backup_password Aa1234567 --backup_file bmc-config.bin --httpip 10.103.62.175 --httpport 8080 --httpdir upload" % (py_name, ip, user, password)
     print(msg)
     sys.stdout.flush()
-    os.system(msg)
+    #os.system(msg)
     print("")
+
+    # Wait bmc to restart
+    #sleep(180)
 
     msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s reset_bmc" % (py_name, ip, user, password)
     print(msg)

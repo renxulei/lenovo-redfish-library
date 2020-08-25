@@ -445,9 +445,14 @@ class ManagerClient(RedfishBase):
                     return {'ret': False, 'msg': "Please specify 'enabled' parameter."}
                 body = {service:{"ProtocolEnabled": bool(int(enabled))}}
             elif service in ["SSH", "SNMP"]:
-                if enabled == None or port == None: 
-                    return {'ret': False, 'msg': "Please specify 'enabled' parameter."}
-                body = {service:{"ProtocolEnabled": bool(int(enabled)),"Port": int(port)}}
+                parameter_info = {}
+                if enabled == None and port == None: 
+                    return {'ret': False, 'msg': "Please specify 'enabled' or 'port' parameter."}
+                if enabled != None:
+                    parameter_info['ProtocolEnabled'] = bool(int(enabled))
+                if port != None:
+                    parameter_info['Port'] = int(port)
+                body = {service: parameter_info}
             elif service in ["HTTPS", "VirtualMedia"]:
                 if port == None:
                     return {'ret': False, 'msg': "Please specify port parameter."}
@@ -1211,8 +1216,8 @@ def run_manager_subcommand(args):
     except Exception as e:
         LOGGER.debug("%s" % traceback.format_exc())
         msg = "Failed to login. Error message: %s" % (repr(e))
-        LOGGER.error(msg)
         LOGGER.debug(parameter_info)
+        LOGGER.error(msg)
         return {'ret': False, 'msg': msg}
 
     result = {}
@@ -1318,6 +1323,8 @@ def run_manager_subcommand(args):
         result = {'ret': False, 'msg': "Subcommand is not supported."}
 
     client.logout()
+    LOGGER.debug(parameter_info)
+    LOGGER.debug(result)
     return result
 
 def manager_usage():
