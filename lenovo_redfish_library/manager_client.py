@@ -252,7 +252,7 @@ class ManagerClient(RedfishBase):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
-    def lenovo_get_bmc_users(self):
+    def get_bmc_users(self):
         """Get bmc user accounts
         :returns: returns List of bmc user accounts.
         """
@@ -1167,7 +1167,7 @@ manager_cmd_list = {
                 'help': "Get event logs of manager, system or chassis",
                 'args': [{'argname': "--type", 'type': str, 'nargs': "?", 'required': False, 'help': "Log of 'manager', 'system' or 'chassis', default is 'manager'"}]
         },
-        "lenovo_get_bmc_users": {
+        "get_bmc_users": {
                 'help': "Get user accounts of bmc",
                 'args': []
         },
@@ -1295,8 +1295,8 @@ def run_manager_subcommand(args):
             parameter_info["type"] = args.type
         result = client.get_event_log(parameter_info["type"])
 
-    elif cmd == 'lenovo_get_bmc_users':
-        result = client.lenovo_get_bmc_users()
+    elif cmd == 'get_bmc_users':
+        result = client.get_bmc_users()
 
     elif cmd == 'get_bmc_virtual_media':
         result = client.get_bmc_virtual_media()
