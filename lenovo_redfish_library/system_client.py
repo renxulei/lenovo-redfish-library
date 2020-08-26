@@ -561,52 +561,6 @@ class SystemClient(RedfishBase):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
-    def get_system_log(self, type='system'):
-        """Get system event logs
-        :params type: 'system', 'manager' or 'chassis'
-        :type type: string
-        :returns: returns List of system event logs
-        """
-        result = {}
-        try:
-            if type not in ['system', 'manager', 'chassis']:
-                result = {'ret': False, 'msg': "Please specify type in ['system', 'manager', 'chassis']."}
-                return result
-
-            if type == "system":
-                resource_url = self._find_system_resource()
-            elif type == "manager":
-                resource_url = self._find_manager_resource()
-            else:
-                resource_url = self._find_chassis_resource()
-            log_service_url = resource_url + '/LogServices'
-            result = self._get_url(resource_url)
-            if result['ret'] == False:
-                return result
-
-            log_service_url = result['entries']['LogServices']['@odata.id']
-            result = self._get_collection(log_service_url)
-            if result['ret'] == False:
-                return result
-            
-            log_details = []
-            for member in result['entries']:
-                id = member['Id']
-                entries_url = member['Entries']['@odata.id']
-                result_logs = self._get_collection(entries_url)
-                if result_logs['ret'] == False:
-                    return result_logs
-                data_filtered = propertyFilter(result_logs['entries'])
-                log = {'Id': id, 'Entries': data_filtered}
-                log_details.append(log)
-            result = {'ret': True, 'entries': log_details}
-            return result
-        except Exception as e:
-            LOGGER.debug("%s" % traceback.format_exc())
-            msg = "Failed to get system storage inventory. Error message: %s" % repr(e)
-            LOGGER.error(msg)
-            return {'ret': False, 'msg': msg}
-
     def get_system_reset_types(self):
         """Get system's reset types
         :returns: returns Dict of system reset types when succeeded or error message when failed
@@ -914,10 +868,6 @@ system_cmd_list = {
                 'help': "Get system's inventory",
                 'args': []
         },
-        "get_system_log": {
-                'help': "Get event logs of system, manager or chassis",
-                'args': [{'argname': "--type", 'type': str, 'nargs': "?", 'required': False, 'help': "Log of 'system','manager' or 'chassis', default is 'system'"}]
-        },       
         "get_system_reset_types": {
                 'help': "Get system's available reset actions.",
                 'args': []
@@ -1023,12 +973,6 @@ def run_system_subcommand(args):
 
     elif cmd == 'get_system_inventory':
         result = client.get_system_inventory()
-
-    elif cmd == 'get_system_log':
-        parameter_info["type"] = 'system'
-        if args.type:
-            parameter_info["type"] = args.type
-        result = client.get_system_log(parameter_info["type"])
 
     elif cmd == 'get_system_reset_types':
         result = client.get_system_reset_types()

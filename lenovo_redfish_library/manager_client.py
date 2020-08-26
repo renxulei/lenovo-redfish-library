@@ -206,6 +206,52 @@ class ManagerClient(RedfishBase):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
+    def get_event_log(self, type='manager'):
+        """Get event logs
+        :params type: 'system', 'manager' or 'chassis'
+        :type type: string
+        :returns: returns List of event logs
+        """
+        result = {}
+        try:
+            if type not in ['system', 'manager', 'chassis']:
+                result = {'ret': False, 'msg': "Please specify type in ['system', 'manager', 'chassis']."}
+                return result
+
+            if type == "system":
+                resource_url = self._find_system_resource()
+            elif type == "manager":
+                resource_url = self._find_manager_resource()
+            else:
+                resource_url = self._find_chassis_resource()
+            log_service_url = resource_url + '/LogServices'
+            result = self._get_url(resource_url)
+            if result['ret'] == False:
+                return result
+
+            log_service_url = result['entries']['LogServices']['@odata.id']
+            result = self._get_collection(log_service_url)
+            if result['ret'] == False:
+                return result
+            
+            log_details = []
+            for member in result['entries']:
+                id = member['Id']
+                entries_url = member['Entries']['@odata.id']
+                result_logs = self._get_collection(entries_url)
+                if result_logs['ret'] == False:
+                    return result_logs
+                data_filtered = propertyFilter(result_logs['entries'])
+                log = {'Id': id, 'Entries': data_filtered}
+                log_details.append(log)
+            result = {'ret': True, 'entries': log_details}
+            return result
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get event logs. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
     def lenovo_get_bmc_users(self):
         """Get bmc user accounts
         :returns: returns List of bmc user accounts.
@@ -1117,6 +1163,10 @@ manager_cmd_list = {
                 'help': "Get NTP setting of bmc",
                 'args': []
         },
+        "get_event_log": {
+                'help': "Get event logs of manager, system or chassis",
+                'args': [{'argname': "--type", 'type': str, 'nargs': "?", 'required': False, 'help': "Log of 'manager', 'system' or 'chassis', default is 'manager'"}]
+        },
         "lenovo_get_bmc_users": {
                 'help': "Get user accounts of bmc",
                 'args': []
@@ -1238,6 +1288,12 @@ def run_manager_subcommand(args):
 
     elif cmd == 'get_bmc_ntp':
         result = client.get_bmc_ntp()
+
+    elif cmd == 'get_event_log':
+        parameter_info["type"] = 'manager'
+        if args.type:
+            parameter_info["type"] = args.type
+        result = client.get_event_log(parameter_info["type"])
 
     elif cmd == 'lenovo_get_bmc_users':
         result = client.lenovo_get_bmc_users()
