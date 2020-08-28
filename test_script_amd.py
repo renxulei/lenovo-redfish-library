@@ -140,7 +140,7 @@ if __name__ == "__main__":
     os.system(msg)
     print("")
 
-    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s get_system_log --type system" % (py_name, ip, user, password)
+    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s get_event_log --type system" % (py_name, ip, user, password)
     print(msg)
     sys.stdout.flush()
     #os.system(msg)
