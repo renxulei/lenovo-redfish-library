@@ -212,8 +212,8 @@ class RedfishBase(HttpClient):
     def _get_url(self, suburl):
         try:
             resp = self.get(suburl)
-            if resp.status in [200]:
-                return {'ret': True, 'entries': resp.dict}
+            if resp.status in [200, 201, 202, 204]:
+                return {'ret': True, 'entries': resp.dict, 'headers': resp.getheaders()}
             else:
                 msg = "Failed to get %s. Error message: %s" % (suburl, str(resp))
                 LOGGER.error(msg)

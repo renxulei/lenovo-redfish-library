@@ -49,7 +49,7 @@ class ManagerClient(RedfishBase):
     #############################################
 
     def get_bmc_inventory(self):
-        """Get bmc inventory    
+        """Get bmc inventory
         :returns: returns Dict of bmc inventory when succeeded or error message when failed
         """
         result = {}
@@ -312,101 +312,250 @@ class ManagerClient(RedfishBase):
         bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
         return bmc_type
 
-    def lenovo_create_bmc_user(self, username, password, authority):
+    PRIVILEGES_XCC = [
+        "UserAccountManagement",
+        "RemoteConsoleAccess",
+        "RemoteConsoleAndVirtualMediaAccess",
+        "RemoteServerPowerRestartAccess",
+        "AbilityClearEventLogs",
+        "Configuration_Basic",
+        "Configuration_NetworkingAndSecurity",
+        "Configuration_Advanced",
+        "Configuration_UEFISecurity"
+    ]
+
+    PRIVILEGES_TSM = [
+        "Login",
+        "ConfigureManager",
+        "ConfigureSelf",
+        "ConfigureUsers",
+        "ConfigureComponents"
+    ]
+
+    def lenovo_create_bmc_role(self, role, privileges):
+        """Create new role of bmc user 
+        :params role: new role id
+        :type password: string
+        :params privileges: privileges list of role, like ['Supervisor'] or ['UserAccountManagement', 'RemoteConsoleAccess']
+        :type privileges: list
+        :returns: returns result of creating bmc role.
+        """
+        result = {}
+        try:
+            roles_url = '/redfish/v1/AccountService/Roles'
+            response = self.get(roles_url)
+            post_flag = False
+            for item in response.getheaders():
+                if item[0].upper() == 'ALLOW' and 'POST' in item[1].upper():
+                    post_flag = True
+                    break
+            if post_flag == False:
+                return {'ret': False, 'msg': "This version of bmc does not support adding new role."}
+             
+            bmc_type = self._check_bmc_type()
+            
+            # Check if privileges are correct.
+            privileges_allowable = None  
+            if bmc_type == 'XCC':
+                privileges_allowable = self.PRIVILEGES_XCC
+            else:
+                privileges_allowable = self.PRIVILEGES_TSM
+
+            for item in privileges:
+                if item not in privileges_allowable:
+                    return {'ret': False, 'msg': "Please specify correct privileges. Allowable privileges are %s." % privileges_allowable}
+
+            # Prepare body for creating role
+            parameter = {}
+            if bmc_type == 'XCC':
+                parameter = {
+                    "RoleId": role,
+                    "OemPrivileges": privileges
+                }
+            else:
+                parameter = {
+                    "Name": role,
+                    "RoleId": role,
+                    "AssignedPrivileges": privileges
+                }
+
+            #create new role
+            headers = None
+            response = self.post(roles_url, body=parameter, headers=headers)
+            if response.status in [200, 201, 202, 204]:
+                return {'ret': True, 'msg': "Succeed to create new role '%s'." % role}
+            else:
+                LOGGER.error(str(response))
+                return {'ret': False, 'msg': "Failed to create new role '%s'. Error code is %s. Error message is %s. " % \
+                        (role, response.status, response.text)}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to create new role. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def lenovo_create_bmc_user(self, username, password, role, privileges=None):
         """Create new bmc user account
         :params username: new  username
         :type username: string
         :params password: new password
         :type password: string
-        :params authority: user authority list, like ['Supervisor'] or ['UserAccountManagement', 'RemoteConsoleAccess']
-        :type authority: list
+        :params role: role name, like 'Administrator', 'Operator', 'ReadOnly' or other self-defined role name. If self-defined role name is specified, please ensure this role exist or privileges must be specified.
+        :type password: string
+        :params privileges: user privileges list, like ['Supervisor'] or ['UserAccountManagement', 'RemoteConsoleAccess']
+        :type privileges: list
         :returns: returns result of creating bmc user account.
         """
         result = {}
         try:
             accounts_url = '/redfish/v1/AccountService/Accounts'
-            bmc_type = self._check_bmc_type()
-            # for TSM (SR635/655)
-            if bmc_type == 'TSM':
-                # Set user privilege
-                # for TSM, only accept 'Supervisor', 'Administrator', 'Operator' and 'ReadOnly'
-                rolename = ""
-                if "Supervisor" in authority or "Administrator" in authority:
-                    rolename = "Administrator"
-                elif "Operator" in authority:
-                    rolename = "Operator"
-                elif "ReadOnly" in authority:
-                    rolename = "ReadOnly"
-                else:
-                    rolename = authority[0]
+            
+            response = self.get(accounts_url)
+            post_flag = False
+            for item in response.getheaders():
+                if item[0].upper() == 'ALLOW' and 'POST' in item[1].upper():
+                    post_flag = True
+                    break
+
+            # Set user role
+            # for TSM, accept 'Supervisor', 'Administrator', 'Operator' and 'ReadOnly'
+            # for XCC, accept 'Supervisor', 'Administrator', 'Operator', 'ReadOnly' or self-defined role 
+            role_predefined = ['Administrator', 'Operator', 'ReadOnly']
+            if role == "Supervisor":
+                role = "Administrator"
+
+            parameter = {}
+            if post_flag == True:
+                # Check self-defined role exist.
+                roles_url = '/redfish/v1/AccountService/Roles'
+                if role not in role_predefined:
+                    found_flag = False
+                    result = self._get_collection(roles_url)
+                    if result['ret'] == False:
+                        return result
+                    for member in result['entries']:
+                        if role == member['Id']:
+                            found_flag = True
+                            break
+                    if found_flag == False:
+                        if privileges == None:
+                            return {'ret': False, 'msg': "The role '%s' does not exist." % role}
+                        else: # create new role with the privileges specified
+                            result = self.lenovo_create_bmc_role(role, privileges)
+                            if result['ret'] == False:
+                                return result
+
                 #create new user account
                 headers = None
                 parameter = {
-                    "Password": password,
                     "Name": username,
                     "UserName": username,
-                    "RoleId":rolename
-                    }
-                post_response = self.post(accounts_url, body=parameter, headers=headers)
-                if post_response.status in [200, 201, 202, 204]:
-                    return {'ret': True, 'msg': "Succeed to create new user '%s'." % username}
-                else:
-                    LOGGER.error(str(post_response))
-                    return {'ret': False, 'msg': "Failed to create new user '%s'. Error code is %s. Error message is %s. " % \
-                            (username, post_response.status, post_response.text)}
-            
-            # for XCC
-            result = self._get_collection('/redfish/v1/AccountService/Accounts')
-            if result['ret'] == False:
-                return result
-
-            account_url = ''
-            for member in result['entries']:
-                if member['UserName'] == username:
-                    return {'ret': False, 'msg': "Failed to create new user. User '%s' existed." % username}
-                if member['UserName'] != '':
-                    continue
-                
-                # found first empty account
-                account_url = member['@odata.id']
-                role_url = member["Links"]["Role"]["@odata.id"]
-                #result_role = self._get_url(roleuri)
-                parameter = {
-                    "OemPrivileges": authority
+                    "Password": password,
+                    "RoleId": role
                 }
-                patch_response = self.patch(role_url, body=parameter)
-                if patch_response.status not in [200, 204]:
-                    result = {'ret': False, 'msg': "Failed to set the privileges. \
-                              Error code is %s. Error message is %s. " % \
-                              (post_response.status, post_response.text)}
+                response = self.post(accounts_url, body=parameter, headers=headers)
+                if response.status in [200, 201, 202, 204]:
+                    account_id = response.dict['Id']
+                    return {'ret': True, 'msg': "Succeed to create new user '%s'. Account id is '%s'." % (username, account_id)}
+                else:
+                    LOGGER.error(str(response))
+                    return {'ret': False, 'msg': "Failed to create new user '%s'. Error code is %s. Error message is %s. " % \
+                            (username, response.status, response.text)}
+            
+            else: # PATCH
+                result = self._get_collection('/redfish/v1/AccountService/Accounts')
+                if result['ret'] == False:
                     return result
-                if "@odata.etag" in member:
-                    etag = member['@odata.etag']
+
+                # Find first empty account
+                account = None
+                for member in result['entries']:
+                    if member['UserName'] == username:
+                        return {'ret': False, 'msg': "Failed to create new user. User '%s' existed." % username}
+                    if member['UserName'] == '' or member['UserName'] == None:
+                        account = member
+                        break
+                if account == None:
+                    return {'ret': False, 'msg': "Accounts are full."}
+                
+                if role in role_predefined:
+                    if 'RoleId@Redfish.AllowableValues' in account.keys(): # 20C
+                        parameter = {
+                            "UserName": username,
+                            "Password": password,
+                            "RoleId": role
+                        }
+                    else: # 20B and before
+                        if role.lower() == 'operator':
+                            return {'ret': False, 'msg': "This version of bmc does not support role 'Operator'. "}
+                        parameter = {
+                            "UserName": username,
+                            "Password": password,
+                            "RoleId": role
+                        }
+                else: # customize role
+                    if privileges == None:
+                        return {'ret': False, 'msg': "Please specify the privileges."}
+
+                    role_url = account["Links"]["Role"]["@odata.id"]
+                    result_role = self._get_url(role_url)
+                    if result_role['ret'] == False:
+                        return result_role
+                    
+                    privileges_allowable = None
+                    if 'OemPrivileges@Redfish.AllowableValues' in result_role['entries'].keys():
+                        privileges_allowable = result_role['entries']['OemPrivileges@Redfish.AllowableValues']
+                    
+                    if privileges_allowable == None:
+                        bmc_type = self._check_bmc_type()
+                        if bmc_type == 'XCC':
+                            privileges_allowable = self.PRIVILEGES_XCC
+                        else:
+                            privileges_allowable = self.PRIVILEGES_TSM
+                    
+                    if privileges_allowable != None:
+                        for item in privileges:
+                            if item not in privileges_allowable:
+                                return {'ret': False, 'msg': "Please specify correct privileges. Allowable privileges are %s." % privileges_allowable}
+
+                    parameter = {
+                        "OemPrivileges": privileges
+                    }
+                    patch_response = self.patch(role_url, body=parameter)
+                    if patch_response.status not in [200, 204]:
+                        result = {'ret': False, 'msg': "Failed to set the privileges. \
+                                  Error code is %s. Error message is %s. " % \
+                                  (patch_response.status, patch_response.text)}
+                        return result
+                    parameter = {
+                        "UserName": username,
+                        "Password": password
+                    }
+                
+                # create new user
+                account_url = account['@odata.id']
+                if "@odata.etag" in account:
+                    etag = account['@odata.etag']
                 else:
                     etag = ""
                 headers = {"If-Match": etag}
-                parameter = {
-                    "Password": password,
-                    "UserName": username
-                    }
-                patch_response = self.patch(account_url, body=parameter, headers=headers)
-                if patch_response.status in [200, 204]:
-                    result = {'ret': True, 'msg': "Succeed to create new user. Account id is '%s'." % member['Id']}
+
+                response = self.patch(account_url, body=parameter, headers=headers)
+                if response.status in [200, 204]:
+                    result = {'ret': True, 'msg': "Succeed to create new user '%s'. Account id is '%s'." % (username, account['Id'])}
                     return result
                 else:
-                    LOGGER.error(str(patch_response))
+                    LOGGER.error(str(response))
                     result = {'ret': False, 'msg': "Failed to create new user '%s'. Error code is %s. Error message is %s. " % \
-                             (username, patch_response.status, patch_response.text)}
+                             (username, response.status, response.text)}
                     return result
-            if account_url == '':
-                return {'ret': False, 'msg': "Accounts is full."}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
-            msg = "Failed to get bmc's user accounts. Error message: %s" % repr(e)
+            msg = "Failed to create bmc's user accounts. Error message: %s" % repr(e)
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
-    def lenovo_delete_bmc_user(self, username):
+    def delete_bmc_user(self, username):
         """delete one bmc user account
         :params username: bmc user name deleted
         :type username: string
@@ -414,44 +563,55 @@ class ManagerClient(RedfishBase):
         """
         result = {}
         try:
-            bmc_type = self._check_bmc_type()
             result = self._get_collection('/redfish/v1/AccountService/Accounts')
             if result['ret'] == False:
                 return result
 
-            account_url = ''
+            account = None
             for member in result['entries']:
                 if member["UserName"] == username:
-                    account_url = member["@odata.id"]
-                    if "@odata.etag" in member:
-                        etag = member['@odata.etag']
-                    else:
-                        etag = ""
+                    account = member
+                    break
 
-                    response = {}
-                    if bmc_type == 'TSM':  # for TSM (SR635/655)
-                        headers = {"If-Match": "*" }
-                        response = self.delete(account_url, headers=headers)
-                    else: # for XCC
-                        headers = {"If-Match": etag}
-                        parameter = {
-                            "Enabled": False,
-                            "UserName": ""
-                        }
-                        response = self.patch(account_url, body=parameter, headers=headers)
-                                            
-                    if response.status in [200, 204]:
-                        result = {'ret': True, 'msg': "Account '%s' was deleted successfully." % username}
-                        return result
-                    else:
-                        LOGGER.error(str(response))
-                        result = {'ret': False, 'msg': "Failed to delete user '%s'. Error code is %s. Error message is %s. " % \
-                                 (username, response.status, response.text)}
-                        return result
-            if account_url == '':
+            if account == None:
                 result = {'ret': False, 'msg': "The user '%s' specified does not exist." % username}
                 LOGGER.error(result['msg'])
                 return result
+
+            account_url = account['@odata.id']
+            response = self.get(account_url)
+            delete_flag = False
+            for item in response.getheaders():
+                if item[0].upper() == 'ALLOW' and 'DELETE' in item[1].upper():
+                    delete_flag = True
+                    break
+
+            if "@odata.etag" in account:
+                etag = account['@odata.etag']
+            else:
+                etag = ""
+
+            response = {}
+            if delete_flag == True:
+                headers = {"If-Match": "*" }
+                response = self.delete(account_url, headers=headers)
+            else: # use patch
+                headers = {"If-Match": etag}
+                parameter = {
+                    "Enabled": False,
+                    "UserName": ""
+                }
+                response = self.patch(account_url, body=parameter, headers=headers)
+                                    
+            if response.status in [200, 204]:
+                result = {'ret': True, 'msg': "Account '%s' was deleted successfully." % username}
+                return result
+            else:
+                LOGGER.error(str(response))
+                result = {'ret': False, 'msg': "Failed to delete user '%s'. Error code is %s. Error message is %s. " % \
+                         (username, response.status, response.text)}
+                return result
+
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
             msg = "Failed to delete bmc's user. Error message: %s" % repr(e)
@@ -1171,15 +1331,21 @@ manager_cmd_list = {
                 'help': "Get user accounts of bmc",
                 'args': []
         },
+        "lenovo_create_bmc_role": {
+                'help': "Add new role of bmc",
+                'args': [{'argname': "--role", 'type': str, 'nargs': "?", 'required': True, 'help': "new role id: self-defined role name."},
+                         {'argname': "--privileges", 'type': str, 'nargs': "*", 'required': False, 'help': "New role's privileges, like 'UserAccountManagement' 'RemoteConsoleAccess'"}]
+        },
         "lenovo_create_bmc_user": {
                 'help': "Add new user account of bmc",
                 'args': [{'argname': "--username", 'type': str, 'nargs': "?", 'required': True, 'help': "New user's name"},
                          {'argname': "--password", 'type': str, 'nargs': "?", 'required': True, 'help': "New user's password"},
-                         {'argname': "--authority", 'type': str, 'nargs': "*", 'required': True, 'help': "New user's authority, like 'Supervisor' or 'UserAccountManagement' 'RemoteConsoleAccess'"}]
+                         {'argname': "--role", 'type': str, 'nargs': "?", 'required': True, 'help': "User's role: 'Administrator', 'Operator', 'ReadOnly' or other self-defined role name. If self-defined role name is specified, please ensure the role exists or specify the privileges."},
+                         {'argname': "--privileges", 'type': str, 'nargs': "*", 'required': False, 'help': "New user's privileges, like 'UserAccountManagement' 'RemoteConsoleAccess'"}]
         },
-        "lenovo_delete_bmc_user": {
+        "delete_bmc_user": {
                 'help': "Delete one user account of bmc",
-                'args': [{'argname': "--username", 'type': str, 'nargs': "?", 'required': True, 'help': "User name will be deleted."}]
+                'args': [{'argname': "--username", 'type': str, 'nargs': "?", 'required': True, 'help': "User with this name will be deleted."}]
         },
         "set_bmc_networkprotocol": {
                 'help': "Set network service of bmc, like: enable/disable service, or change the port",
@@ -1301,15 +1467,21 @@ def run_manager_subcommand(args):
     elif cmd == 'get_bmc_virtual_media':
         result = client.get_bmc_virtual_media()
 
+    elif cmd == 'lenovo_create_bmc_role':
+        parameter_info["role"] = args.role
+        parameter_info["privileges"] = args.privileges
+        result = client.lenovo_create_bmc_role(parameter_info["role"], parameter_info["privileges"])
+
     elif cmd == 'lenovo_create_bmc_user':
         parameter_info["username"] = args.username
         parameter_info["password"] = args.password
-        parameter_info["authority"] = args.authority
-        result = client.lenovo_create_bmc_user(parameter_info["username"], parameter_info["password"], parameter_info["authority"])
+        parameter_info["role"] = args.role
+        parameter_info["privileges"] = args.privileges
+        result = client.lenovo_create_bmc_user(parameter_info["username"], parameter_info["password"], parameter_info["role"], parameter_info["privileges"])
 
-    elif cmd == 'lenovo_delete_bmc_user':
+    elif cmd == 'delete_bmc_user':
         parameter_info["username"] = args.username
-        result = client.lenovo_delete_bmc_user(parameter_info["username"])
+        result = client.delete_bmc_user(parameter_info["username"])
 
     elif cmd == 'set_bmc_networkprotocol':
         parameter_info["service"] = args.service
