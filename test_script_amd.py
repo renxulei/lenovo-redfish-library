@@ -218,7 +218,7 @@ if __name__ == "__main__":
     os.system(msg)
     print("")
 
-    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s lenovo_get_bmc_users" % (py_name, ip, user, password)
+    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s get_bmc_users" % (py_name, ip, user, password)
     print(msg)
     sys.stdout.flush()
     os.system(msg)
@@ -230,13 +230,25 @@ if __name__ == "__main__":
     os.system(msg)
     print("")
 
-    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s lenovo_create_bmc_user --username abcd --password PASSW0RD12q --authority Supervisor " % (py_name, ip, user, password)
+    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s lenovo_create_bmc_user --username abcd --password PASSW0RD12q --role Administrator" % (py_name, ip, user, password)
     print(msg)
     sys.stdout.flush()
     os.system(msg)
     print("")
 
-    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s lenovo_delete_bmc_user --username abcd" % (py_name, ip, user, password)
+    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s lenovo_create_bmc_user --username efjh --password PASSW0RD12q --role role1 --privileges Login ConfigureManager" % (py_name, ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
+    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s delete_bmc_user --username abcd" % (py_name, ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
+    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s delete_bmc_user --username efjh" % (py_name, ip, user, password)
     print(msg)
     sys.stdout.flush()
     os.system(msg)
