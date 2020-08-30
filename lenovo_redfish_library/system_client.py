@@ -591,22 +591,32 @@ class SystemClient(RedfishBase):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
-    def get_system_boot_once(self):
+    def get_system_boot_once(self, type='current'):
         """Get system's boot once info
-        :returns: returns Dict of system's boot once info when succeeded or error message when failed
+        :params type: 'current': current boot once setting. 'allow': allowable boot source list. default is 'current'.
+        :type type: string
+        :returns: returns Dict of system's boot once info or List of allowable boot source
         """
         result = {}
         try:
+            if type == None:
+                type = 'current'
+            if type not in ['current', 'allow']:
+                return {'ret': False, 'msg': "Type '%s' is not correct." % type}
             system_url = self._find_system_resource()
             result = self._get_url(system_url)
             if result['ret'] == False:
                 return result
             boot_once = {}
             boot_info = result['entries']['Boot']
-            for key in boot_info.keys():
-                if 'BootSourceOverride' in key:
-                    boot_once[key] = boot_info[key]
-            return {'ret': True, 'entries': boot_once}
+            if type == 'current':
+                for key in boot_info.keys():
+                    if 'BootSourceOverride' in key and '@Redfish' not in key:
+                        boot_once[key] = boot_info[key]
+                return {'ret': True, 'entries': boot_once}
+            else:
+                allow_value = boot_info['BootSourceOverrideTarget@Redfish.AllowableValues']
+                return {'ret': True, 'entries': allow_value}
         except Exception as e:
             LOGGER.debug("%s" % traceback.format_exc())
             msg = "Failed to get system's boot once info. Error message: %s" % repr(e)
@@ -961,8 +971,8 @@ system_cmd_list = {
                 'args': []
         },
         "get_system_boot_once": {
-                'help': "Get system's boot once info.",
-                'args': []
+                'help': "Get current system's boot once setting or allowable boot source list.",
+                'args': [{'argname': "--type", 'type': str, 'nargs': "?", 'required': False, 'help': "'current': current boot once setting. 'allow': allowable boot source list. Default is 'current'."}]
         },
         "set_bios_attribute": {
                 'help': "Set one attribute of bios",
@@ -1073,7 +1083,9 @@ def run_system_subcommand(args):
         result = client.get_system_reset_types()
 
     elif cmd == 'get_system_boot_once':
-        result = client.get_system_boot_once()
+        if args.type == None:
+            args.type = 'current'
+        result = client.get_system_boot_once(args.type)
 
     elif cmd == 'set_bios_attribute':
         result = client.set_bios_attribute(args.attribute_name, args.attribute_value)
