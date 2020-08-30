@@ -160,7 +160,7 @@ if __name__ == "__main__":
 
     #bootorder = '"ubuntu" "Hard Disk" "USB Storage" "CD/DVD Rom"'
     bootorder = '"Hard Drive" "CD/DVD Drive" "ubuntu" "Windows Boot Manager" "UEFI: PXE IP4 Mellanox Network Adapter"'
-    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s set_system_boot_order --bootorder %s" % (py_name, ip, user, password, bootorder)
+    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s lenovo_set_system_boot_order --bootorder %s" % (py_name, ip, user, password, bootorder)
     print(msg)
     sys.stdout.flush()
     os.system(msg)

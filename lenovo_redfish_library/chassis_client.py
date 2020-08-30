@@ -349,7 +349,7 @@ def run_chassis_subcommand(args):
         result = {'ret': False, 'msg': "Subcommand is not supported."}
 
     client.logout()
-    LOGGER.debug(parameter_info)
+    LOGGER.debug(args)
     LOGGER.debug(result)
     return result
 

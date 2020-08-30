@@ -591,6 +591,28 @@ class SystemClient(RedfishBase):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
+    def get_system_boot_once(self):
+        """Get system's boot once info
+        :returns: returns Dict of system's boot once info when succeeded or error message when failed
+        """
+        result = {}
+        try:
+            system_url = self._find_system_resource()
+            result = self._get_url(system_url)
+            if result['ret'] == False:
+                return result
+            boot_once = {}
+            boot_info = result['entries']['Boot']
+            for key in boot_info.keys():
+                if 'BootSourceOverride' in key:
+                    boot_once[key] = boot_info[key]
+            return {'ret': True, 'entries': boot_once}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to get system's boot once info. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
     #############################################
     # functions for setting information.
     #############################################
@@ -658,7 +680,7 @@ class SystemClient(RedfishBase):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
-    def set_system_boot_order(self, bootorder):
+    def lenovo_set_system_boot_order(self, bootorder):
         """Set system boot order.
         :params bootorder: Specify the bios boot order list, like: ["ubuntu", "CD/DVD Rom", "Hard Disk", "USB Storage"]
         :type bootorder: list
@@ -810,6 +832,72 @@ class SystemClient(RedfishBase):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
+    def set_system_boot_once(self, bootsource, bootmode=None, uefi_target=None, enabled='Once'):
+        """Set server boot once.
+        :params bootsource: Boot source type. like 'Cd', 'Hdd'. Please use get_system_boot_once to get whole list.
+        :type bootsource: string
+        :params bootmode: Boot mode. 'UEFI' or 'Legacy'
+        :type bootmode: string
+        :params uefi_target: uefi target, which should be the Id of one virtual media instance.
+        :type uefi_target: string
+        :params enabled: 'Once', 'Disabled' or 'Continuous'. Default is 'Once'.
+        :type enabled: string
+        :returns: returns the result to set system boot once. 
+        """
+        result = {}
+        try:
+            system_url = self._find_system_resource()
+            result = self._get_url(system_url)
+            if result['ret'] == False:
+                return result
+            
+            # Check parameter's value
+            bootonce_allowlist = result['entries']['Boot']['BootSourceOverrideTarget@Redfish.AllowableValues']
+            if bootsource not in bootonce_allowlist:
+                return {'ret': False, 'msg': "Boot source '%s' is not correct. Allowable values is '%s'." % (bootsource, bootonce_allowlist)}
+            if bootsource == 'UefiTarget':
+                if uefi_target == None or uefi_target == '':
+                    return {'ret': False, 'msg': "Please specify uefi_target."}
+            if bootmode.lower() == 'uefi':
+                bootmode = 'UEFI'
+            elif bootmode.lower() == 'legacy':
+                bootmode = 'Legacy'
+            else:
+                return {'ret': False, 'msg': "Boot mode '%s' is not correct. Allowable values is 'UEFI' or 'Legacy'." % bootmode}
+            enabled_allowlist = ['Once', 'Disabled', 'Continuous']
+            if enabled != None and enabled not in enabled_allowlist:
+                return {'ret': False, 'msg': "Enabled value '%s' is not correct. Allowable values is '%s'." % (enabled, enabled_allowlist)}
+
+            # Prepare headers
+            if "@odata.etag" in result['entries']:
+                etag = result['entries']['@odata.etag']
+            else:
+                etag = ""
+            headers = {"If-Match": etag}
+
+            # Prepare PATCH body to set Boot once to the target user specified
+            boot_info = result['entries']['Boot']
+            body = {'Boot': {'BootSourceOverrideEnabled': enabled, 'BootSourceOverrideTarget': bootsource}}
+            if bootsource == 'UefiTarget' and 'UefiTargetBootSourceOverride' in boot_info.keys():
+                body['Boot']['UefiTargetBootSourceOverride'] = uefi_target
+            body['Boot']['BootSourceOverrideTarget'] = bootsource
+            if bootmode != None:
+                body['Boot']['BootSourceOverrideMode'] = bootmode
+            if enabled != None:
+                body['Boot']['BootSourceOverrideEnabled'] = enabled
+
+            response = self.patch(system_url, body=body, headers=headers)
+            if response.status in [200, 202, 204]:
+                return {'ret': True, 'msg': "Succeed to set system boot once '%s'." % bootsource}
+            else:
+                LOGGER.error(str(response))
+                return {'ret': False, 'msg': "Failed to set system boot once '%s'. Error code is %s. Error message is %s. " % \
+                        (bootsource, response.status, response.text)}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to set system boot once. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
 system_cmd_list = {
         "get_all_bios_attributes": {
@@ -872,18 +960,29 @@ system_cmd_list = {
                 'help': "Get system's available reset actions.",
                 'args': []
         },
+        "get_system_boot_once": {
+                'help': "Get system's boot once info.",
+                'args': []
+        },
         "set_bios_attribute": {
                 'help': "Set one attribute of bios",
                 'args': [{'argname': "--attribute_name", 'type': str, 'nargs': "?", 'required': True, 'help': "Attribute name of bios"},
                          {'argname': "--attribute_value", 'type': str, 'nargs': "?", 'required': True, 'help': "New value of this attribute"}]
         },
-        "set_system_boot_order": {
+        "lenovo_set_system_boot_order": {
                 'help': "Set system's boot order",
                 'args': [{'argname': "--bootorder", 'type': str, 'nargs': "*", 'required': True, 'help': "Bios boot order list, like: 'CD/DVD Rom' 'Hard Disk'"}]
         },
         "set_bios_bootmode": {
                 'help': "Set system's boot mode",
                 'args': [{'argname': "--bootmode", 'type': str, 'nargs': "?", 'required': True, 'help': "System's boot mode. please use 'get_bios_bootmode' to list available boot mode."}]
+        },
+        "set_system_boot_once": {
+                'help': "Set system's boot once",
+                'args': [{'argname': "--bootsource", 'type': str, 'nargs': "?", 'required': True, 'help': "System's boot once type. Please use 'get_system_boot_once' to get available value."},
+                         {'argname': "--bootmode", 'type': str, 'nargs': "?", 'required': False, 'help': "System's boot mode, 'UEFI' or 'Legacy'."},
+                         {'argname': "--uefi_target", 'type': str, 'nargs': "?", 'required': False, 'help': "Uefi target, which should be the Id of one virtual media instance."},
+                         {'argname': "--enabled", 'type': str, 'nargs': "?", 'required': False, 'help': "System's boot enabled, default is 'Once'. Allowable values are 'Once', 'Disabled' or 'Continuous'."}]
         },
         "set_system_power_state": {
                 'help': "Set system's power state",
@@ -911,10 +1010,10 @@ def run_system_subcommand(args):
 
     try:
         client = SystemClient(ip=parameter_info['ip'], 
-                                    username=parameter_info['user'], 
-                                    password=parameter_info['password'], 
-                                    configfile=parameter_info['config'], 
-                                    auth=parameter_info['auth'])
+                              username=parameter_info['user'], 
+                              password=parameter_info['password'], 
+                              configfile=parameter_info['config'], 
+                              auth=parameter_info['auth'])
         client.login()
     except Exception as e:
         LOGGER.debug("%s" % traceback.format_exc())
@@ -925,23 +1024,20 @@ def run_system_subcommand(args):
 
     result = {}
     if cmd == 'get_all_bios_attributes':
-        parameter_info["type"] = 'current'
-        if args.type:
-            parameter_info["type"] = args.type
-        result = client.get_all_bios_attributes(parameter_info["type"])
+        if args.type == None:
+            args.type = 'current'
+        result = client.get_all_bios_attributes(args.type)
 
     elif cmd == 'get_bios_attribute':
-        parameter_info["attribute_name"] = args.attribute_name
-        result = client.get_bios_attribute(parameter_info["attribute_name"])
+        result = client.get_bios_attribute(args.attribute_name)
 
     elif cmd == 'get_bios_attribute_metadata':
         result = client.get_bios_attribute_metadata()
 
     elif cmd == 'get_bios_attribute_available_value':
-        parameter_info["attribute_name"] = 'all'
-        if args.attribute_name:
-            parameter_info["attribute_name"] = args.attribute_name
-        result = client.get_bios_attribute_available_value(parameter_info["attribute_name"])
+        if args.attribute_name == None:
+            args.attribute_name = 'all'
+        result = client.get_bios_attribute_available_value(args.attribute_name)
 
     elif cmd == 'get_bios_bootmode':
         result = client.get_bios_bootmode()
@@ -953,8 +1049,7 @@ def run_system_subcommand(args):
         result = client.get_cpu_inventory()
 
     elif cmd == 'get_memory_inventory':
-        parameter_info["id"] = args.id
-        result = client.get_memory_inventory(parameter_info["id"])
+        result = client.get_memory_inventory(args.id)
 
     elif cmd == 'get_system_ethernet_interfaces':
         result = client.get_system_ethernet_interfaces()
@@ -977,28 +1072,29 @@ def run_system_subcommand(args):
     elif cmd == 'get_system_reset_types':
         result = client.get_system_reset_types()
 
-    elif cmd == 'set_bios_attribute':
-        parameter_info["attribute_name"] = args.attribute_name
-        parameter_info["attribute_value"] = args.attribute_value
-        result = client.set_bios_attribute(parameter_info["attribute_name"], parameter_info["attribute_value"])
+    elif cmd == 'get_system_boot_once':
+        result = client.get_system_boot_once()
 
-    elif cmd == 'set_system_boot_order':
-        parameter_info["bootorder"] = args.bootorder
-        result = client.set_system_boot_order(parameter_info["bootorder"])
+    elif cmd == 'set_bios_attribute':
+        result = client.set_bios_attribute(args.attribute_name, args.attribute_value)
+
+    elif cmd == 'lenovo_set_system_boot_order':
+        result = client.lenovo_set_system_boot_order(args.bootorder)
 
     elif cmd == 'set_bios_bootmode':
-        parameter_info["bootmode"] = args.bootmode
-        result = client.set_bios_bootmode(parameter_info["bootmode"])
+        result = client.set_bios_bootmode(args.bootmode)
+
+    elif cmd == 'set_system_boot_once':
+        result = client.set_system_boot_once(args.bootsource, args.bootmode, args.uefi_target, args.enabled)
 
     elif cmd == 'set_system_power_state':
-        parameter_info["reset_type"] = args.reset_type
-        result = client.set_system_power_state(parameter_info["reset_type"])
+        result = client.set_system_power_state(args.reset_type)
 
     else:
         result = {'ret': False, 'msg': "Subcommand is not supported."}
 
     client.logout()
-    LOGGER.debug(parameter_info)
+    LOGGER.debug(args)
     LOGGER.debug(result)
     return result
 

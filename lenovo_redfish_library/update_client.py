@@ -303,10 +303,10 @@ def run_update_subcommand(args):
 
     try:
         client = UpdateClient(ip=parameter_info['ip'], 
-                                    username=parameter_info['user'], 
-                                    password=parameter_info['password'], 
-                                    configfile=parameter_info['config'], 
-                                    auth=parameter_info['auth'])
+                              username=parameter_info['user'], 
+                              password=parameter_info['password'], 
+                              configfile=parameter_info['config'], 
+                              auth=parameter_info['auth'])
         client.login()
     except Exception as e:
         LOGGER.debug("%s" % traceback.format_exc())
@@ -320,26 +320,21 @@ def run_update_subcommand(args):
         result = client.get_firmware_inventory()
 
     elif cmd == 'lenovo_update_firmware':
-        parameter_info["image"] = args.image
-        parameter_info["target"] = args.target
-        parameter_info["fsprotocol"] = 'HTTPPUSH'
-        if args.fsprotocol:
-            parameter_info["fsprotocol"] = args.fsprotocol
-        parameter_info["fsip"] = args.fsip
-        parameter_info["fsdir"] = args.fsdir
-        parameter_info["fsusername"] = args.fsusername
-        parameter_info["fspassword"] = args.fspassword
-        result = client.lenovo_update_firmware(parameter_info["image"], 
-                                               parameter_info["target"], 
-                                               parameter_info["fsprotocol"], 
-                                               parameter_info["fsip"], 
-                                               parameter_info["fsdir"], 
-                                               parameter_info["fsusername"], 
-                                               parameter_info["fspassword"])
+        if args.fsprotocol == None:
+            args.fsprotocol = 'HTTPPUSH'
+        result = client.lenovo_update_firmware(args.image, 
+                                               args.target, 
+                                               args.fsprotocol, 
+                                               args.fsip, 
+                                               args.fsdir, 
+                                               args.fsusername, 
+                                               args.fspassword)
     else:
         result = {'ret': False, 'msg': "Subcommand is not supported."}
 
     client.logout()
+    LOGGER.debug(args)
+    LOGGER.debug(result)
     return result
 
 

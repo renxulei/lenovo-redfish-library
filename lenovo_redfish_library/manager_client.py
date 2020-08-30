@@ -1456,10 +1456,9 @@ def run_manager_subcommand(args):
         result = client.get_bmc_ntp()
 
     elif cmd == 'get_event_log':
-        parameter_info["type"] = 'manager'
-        if args.type:
-            parameter_info["type"] = args.type
-        result = client.get_event_log(parameter_info["type"])
+        if args.type == None:
+            args.type = 'manager'
+        result = client.get_event_log(args.type)
 
     elif cmd == 'get_bmc_users':
         result = client.get_bmc_users()
@@ -1468,90 +1467,52 @@ def run_manager_subcommand(args):
         result = client.get_bmc_virtual_media()
 
     elif cmd == 'lenovo_create_bmc_role':
-        parameter_info["role"] = args.role
-        parameter_info["privileges"] = args.privileges
-        result = client.lenovo_create_bmc_role(parameter_info["role"], parameter_info["privileges"])
+        result = client.lenovo_create_bmc_role(args.role, args.privileges)
 
     elif cmd == 'lenovo_create_bmc_user':
-        parameter_info["username"] = args.username
-        parameter_info["password"] = args.password
-        parameter_info["role"] = args.role
-        parameter_info["privileges"] = args.privileges
-        result = client.lenovo_create_bmc_user(parameter_info["username"], parameter_info["password"], parameter_info["role"], parameter_info["privileges"])
+        result = client.lenovo_create_bmc_user(args.username, args.password, args.role, args.privileges)
 
     elif cmd == 'delete_bmc_user':
-        parameter_info["username"] = args.username
-        result = client.delete_bmc_user(parameter_info["username"])
+        result = client.delete_bmc_user(args.username)
 
     elif cmd == 'set_bmc_networkprotocol':
-        parameter_info["service"] = args.service
-        parameter_info["enabled"] = args.enabled
-        parameter_info["port"] = args.port
-        result = client.set_bmc_networkprotocol(parameter_info["service"], parameter_info["enabled"], parameter_info["port"])
+        result = client.set_bmc_networkprotocol(args.service, args.enabled, args.port)
 
     elif cmd == 'lenovo_export_ffdc':
-        parameter_info["data_type"] = args.data_type
-        parameter_info["fsprotocol"] = args.fsprotocol
-        parameter_info["fsip"] = args.fsip
-        parameter_info["fsport"] = args.fsport
-        parameter_info["fsdir"] = args.fsdir
-        parameter_info["fsusername"] = args.fsusername
-        parameter_info["fspassword"] = args.fspassword
-        result = client.lenovo_export_ffdc(parameter_info["data_type"], parameter_info["fsprotocol"], parameter_info["fsip"], parameter_info["fsport"], parameter_info["fsdir"], parameter_info["fsusername"], parameter_info["fspassword"])
+        result = client.lenovo_export_ffdc(args.data_type, args.fsprotocol, args.fsip, args.fsport, args.fsdir, args.fsusername, args.fspassword)
 
     elif cmd == 'lenovo_mount_virtual_media':
-        parameter_info["image"] = args.image
-        parameter_info["fsprotocol"] = args.fsprotocol
-        parameter_info["fsip"] = args.fsip
-        parameter_info["fsport"] = args.fsport
-        parameter_info["fsdir"] = args.fsdir
-        parameter_info["inserted"] = 1
-        if args.inserted != None:
-            parameter_info["inserted"] = args.inserted
-        parameter_info["write_protected"] = 1
-        if args.write_protected != None:
-            parameter_info["write_protected"] = args.write_protected
+        if args.inserted == None:
+            args.inserted = 1
+        if args.write_protected == None:
+            args.write_protected = 1
 
         # Change to 'basic' session. If use 'session' connection, once logout, virtual media will be ejected automatically.
         client.login(auth='basic')
-        result = client.lenovo_mount_virtual_media(parameter_info["image"], parameter_info["fsprotocol"], parameter_info["fsip"], parameter_info["fsdir"], parameter_info["fsport"], parameter_info["inserted"], parameter_info["write_protected"])
+        result = client.lenovo_mount_virtual_media(args.image, args.fsprotocol, args.fsip, args.fsdir, args.fsport, args.inserted, args.write_protected)
 
     elif cmd == 'lenovo_umount_virtual_media':
-        parameter_info["image"] = args.image
-        result = client.lenovo_umount_virtual_media(parameter_info["image"])
+        result = client.lenovo_umount_virtual_media(args.image)
 
     elif cmd == 'lenovo_bmc_config_backup':
-        parameter_info["backup_password"] = args.backup_password
-        parameter_info["backup_file"] = args.backup_file
-        parameter_info["httpip"] = args.httpip
-        parameter_info["httpport"] = args.httpport
-        parameter_info["httpdir"] = args.httpdir
-        result = client.lenovo_bmc_config_backup(parameter_info["backup_password"], parameter_info["backup_file"], parameter_info["httpip"], parameter_info["httpport"], parameter_info["httpdir"])
+        result = client.lenovo_bmc_config_backup(args.backup_password, args.backup_file, args.httpip, args.httpport, args.httpdir)
 
     elif cmd == 'lenovo_bmc_config_restore':
-        parameter_info["backup_password"] = args.backup_password
-        parameter_info["backup_file"] = args.backup_file
-        parameter_info["httpip"] = args.httpip
-        parameter_info["httpport"] = args.httpport
-        parameter_info["httpdir"] = args.httpdir
-        result = client.lenovo_bmc_config_restore(parameter_info["backup_password"], parameter_info["backup_file"], parameter_info["httpip"], parameter_info["httpport"], parameter_info["httpdir"])
+        result = client.lenovo_bmc_config_restore(args.backup_password, args.backup_file, args.httpip, args.httpport, args.httpdir)
 
     elif cmd == 'reset_bmc':
-        parameter_info["reset_type"] = args.reset_type
-        result = client.reset_bmc(parameter_info["reset_type"])
+        result = client.reset_bmc(args.reset_type)
 
     elif cmd == 'set_bmc_ntp':
-        parameter_info["ntp_server"] = args.ntp_server
-        parameter_info["protocol_enabled"] = 1
-        if args.protocol_enabled != None:
-            parameter_info["protocol_enabled"] = args.protocol_enabled
-        result = client.set_bmc_ntp(parameter_info["ntp_server"], parameter_info["protocol_enabled"])
+        if args.protocol_enabled == None:
+            args.protocol_enabled = 1
+        result = client.set_bmc_ntp(args.ntp_server, args.protocol_enabled)
 
     else:
         result = {'ret': False, 'msg': "Subcommand is not supported."}
 
     client.logout()
-    LOGGER.debug(parameter_info)
+    LOGGER.debug(args)
     LOGGER.debug(result)
     return result
 
