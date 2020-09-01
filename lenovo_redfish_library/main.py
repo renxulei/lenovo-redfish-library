@@ -31,6 +31,7 @@ from .system_client import *
 from .manager_client import *
 from .chassis_client import *
 from .update_client import *
+from .account_client import *
 
 
 def usage():
@@ -38,6 +39,7 @@ def usage():
     manager_usage()
     chassis_usage()
     update_usage()
+    account_usage()
 
 def main(argv):
     """Lenovo Redfish client's main"""
@@ -50,6 +52,7 @@ def main(argv):
     add_manager_parameter(subcommand_parsers)
     add_chassis_parameter(subcommand_parsers)
     add_update_parameter(subcommand_parsers)
+    add_account_parameter(subcommand_parsers)
 
     # Parse the parameters
     args = argget.parse_args()
@@ -62,6 +65,8 @@ def main(argv):
         result = run_chassis_subcommand(args)
     elif args.subcommand_name in update_cmd_list.keys():
         result = run_update_subcommand(args)
+    elif args.subcommand_name in account_cmd_list.keys():
+        result = run_account_subcommand(args)
     else:
         usage()
         result = {'ret': False, 'msg': "Please specify correct subcommand."}
