@@ -139,7 +139,7 @@ def read_config(config_file):
 def add_common_parameter(argget):
     argget.add_argument('-i', '--ip', type=str, help=('BMC IP address'))
     argget.add_argument('-u', '--user', type=str, help='BMC user name')
-    argget.add_argument('-p', '--password', type=str, help='BMC user password')
+    argget.add_argument('-p', '--passwd', type=str, help='BMC user password')
     argget.add_argument('-c', '--config', type=str, default='config.ini', help=('Configuration file(may be overrided by parameters from command line)'))
     argget.add_argument('-a', '--auth', type=str, default=None, choices=['session', 'basic'], help='Authentication mode(session or basic), the default is session')
 
@@ -149,7 +149,7 @@ def parse_common_parameter(args):
     parameter_info = {}
     parameter_info["ip"] = args.ip if args.ip else ''    
     parameter_info["user"] = args.user if args.user else ''
-    parameter_info["password"] = args.password if args.password else ''
+    parameter_info["password"] = args.passwd if args.passwd else ''
     parameter_info["config"] = args.config if args.config else ''
     parameter_info["auth"] = args.auth if args.auth else ''
     return parameter_info
