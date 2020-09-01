@@ -86,6 +86,18 @@ if __name__ == "__main__":
     os.system(msg)
     print("")
 
+    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s get_system_boot_once" % (py_name, ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
+    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s get_system_boot_once --type allow" % (py_name, ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
     msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s get_cpu_inventory" % (py_name, ip, user, password)
     print(msg)
     sys.stdout.flush()
