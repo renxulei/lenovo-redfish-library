@@ -563,7 +563,7 @@ class SystemClient(RedfishBase):
 
     def get_system_reset_types(self):
         """Get system's reset types
-        :returns: returns Dict of system reset types when succeeded or error message when failed
+        :returns: returns List of system reset types when succeeded or error message when failed
         """
         result = {}
         try:
@@ -580,9 +580,9 @@ class SystemClient(RedfishBase):
             if "Parameters" in result['entries']:
                 for parameter in result['entries']["Parameters"]:
                     if ("Name" in parameter) and (parameter["Name"] == "ResetType"):
-                        reset_types = {}
+                        reset_types = []
                         if "AllowableValues" in parameter:
-                            reset_types["ResetType@Redfish.AllowableValues"] = parameter["AllowableValues"]
+                            reset_types = parameter["AllowableValues"]
                             return {'ret': True, 'entries': reset_types}
             return {'ret': False, 'msg': "Failed to get system reset types."}
         except Exception as e:
