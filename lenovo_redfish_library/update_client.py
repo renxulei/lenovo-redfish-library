@@ -47,7 +47,7 @@ class UpdateClient(RedfishBase):
     #############################################
     # functions for getting information.
     #############################################
- 
+
     def get_firmware_inventory(self):
         """Get firmware inventory
         :returns: returns List of firmwares when succeeded or error message when failed
@@ -95,12 +95,15 @@ class UpdateClient(RedfishBase):
         """
         result = {}
         try:
-            manager_url = self._find_manager_resource()
-            bmc_type = 'TSM' if 'Self' in manager_url else 'XCC'
-            
-            result = self._get_url('/redfish/v1/UpdateService')
+            update_service_url = '/redfish/v1/UpdateService'
+            result = self._get_url(update_service_url)
             if result['ret'] == False:
                 return result
+
+            # Check bmc type. XCC has 'HttpPushUri', TSM no this.
+            bmc_type = 'TSM'
+            if 'HttpPushUri' in result['entries'].keys():
+                bmc_type = 'XCC'
 
             if bmc_type == 'XCC':
                 if target != None and target.lower() == "bmc-backup":
@@ -109,7 +112,6 @@ class UpdateClient(RedfishBase):
                     target = None
                 # Update firmware via local payload
                 if fsprotocol.lower() == "httppush":
-                    firmware_update_url =  self.get_base_url() + result['entries']["HttpPushUri"]
                     if fsdir == None or fsdir == '':
                         file_path = os.getcwd()+ os.sep + image
                     else:
@@ -122,6 +124,17 @@ class UpdateClient(RedfishBase):
                         result = {'ret': False, 'msg': "File '%s' does not exist." % file_path}
                         return result
 
+                    # Update for BMC-Backup, need to set HttpPushUriTargets.
+                    if target != None:
+                        body = {}
+                        body["HttpPushUriTargets"] = [target]
+                        response = self.patch(update_service_url, body=body)
+                        if response.status not in [200, 204]:
+                            result = {'ret': False, 'msg': "Failed to set target '%s'. Error code is %s. Error message is %s. " % \
+                                      (target, response.status, response.text)}
+                            LOGGER.error(result['msg'])
+                            return result
+                    firmware_update_url =  self.get_base_url() + result['entries']["HttpPushUri"]
                     headers = {"Content-Type":"application/octet-stream"}
                     if self._auth == 'session':
                         headers["X-Auth-Token"] = self.get_session_key()
@@ -135,6 +148,18 @@ class UpdateClient(RedfishBase):
                         requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
                         response = requests.post(firmware_update_url, headers=headers, files=files, verify=False)
                     response_code = response.status_code
+                    
+                    # After BMC-Backup updated, need to set HttpPushUriTargets to null.
+                    # Otherwise it will keep existing and impact other FW update, until BMC restart. 
+                    if target != None:
+                        body = {}
+                        body["HttpPushUriTargets"] = []
+                        response_patch = self.patch(update_service_url, body=body)
+                        # even failed, do not return error, because updating action itself have succeeded.
+                        if response_patch.status not in [200, 204]:
+                            result = {'ret': False, 'msg': "Failed to clear target '%s'. Error code is %s. Error message is %s. " % \
+                                      (target, response_patch.status, response_patch.text)}
+                            LOGGER.error(result['msg'])
                 else: # sftp/tftp
                     firmware_update_url = result['entries']['Actions']['#UpdateService.SimpleUpdate']['target']
                     # Update firmware via file server
