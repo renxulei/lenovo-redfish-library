@@ -24,4 +24,5 @@ from .manager_client import ManagerClient
 from .system_client import SystemClient
 from .chassis_client import ChassisClient
 from .update_client import UpdateClient
+from .account_client import AccountClient
 from .redfish_base import RedfishBase
