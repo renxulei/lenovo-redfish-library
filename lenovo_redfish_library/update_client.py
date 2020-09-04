@@ -223,6 +223,7 @@ class UpdateClient(RedfishBase):
                         return result
 
                     multipart_uri = self.get_base_url() + result['entries']["MultipartHttpPushUri"]
+                    manager_url = self._find_manager_resource()
                     parameters = {"Targets": [manager_url]}
                     
                     # Create temporary files to write to the OEM value
@@ -244,7 +245,6 @@ class UpdateClient(RedfishBase):
                     # Ignore SSL Certificates
                     requests.packages.urllib3.disable_warnings(InsecureRequestWarning)  
                     print("Start to upload the image, may take about 3~10 minutes...")
-                    firmware_update_url = multipart_uri
                     headers = {}
                     if self._auth == 'session':
                         headers["X-Auth-Token"] = self.get_session_key()

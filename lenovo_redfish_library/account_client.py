@@ -423,7 +423,6 @@ class AccountClient(RedfishBase):
 
             headers = {"If-Match": etag}
             body = {"Password": password}
-            print(body)
             response = self.patch(account_url, body=body, headers=headers)
                                     
             if response.status in [200, 204]:

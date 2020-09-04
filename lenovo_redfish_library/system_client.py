@@ -74,7 +74,9 @@ class SystemClient(RedfishBase):
                     return result_pending_url
 
                 # Get the pending url resource
-                pending_attribute = result_pending_url['entries']['Attributes']
+                pending_attribute = {}
+                if 'Attributes' in result_pending_url['entries']:
+                    pending_attribute = result_pending_url['entries']['Attributes']
                 current_attribute = result_bios['entries']['Attributes']
                 changed_attribute = {}
                 for key in pending_attribute:
@@ -803,7 +805,7 @@ class SystemClient(RedfishBase):
     def set_bios_bootmode(self, bootmode):
         """Set bios bootmode.
         :params bootmode: new value of Bios attribute
-        :type bootmode: string.
+        :type bootmode: string
         :returns: returns the result to set bios bootmode result
         """
         result = self.get_bios_bootmode()
@@ -813,6 +815,126 @@ class SystemClient(RedfishBase):
         attribute_name = list(result['entries'].keys())[0]
         result = self.set_bios_attribute(attribute_name, bootmode)
         return result
+
+    def set_bios_password(self, password_name, new_password, old_password=None):
+        """Set bios password.
+        :params password_name: password name, like 'UefiAdminPassword', 'UefiPowerOnPassword'
+        :type password_name: string
+        :params new_password: new bios password. set '' if you want to clear the password
+        :type new_password: string
+        :params old_password: old bios password if needed
+        :type old_password: string
+        :returns: returns the result to set bios password
+        """
+        result = {}
+        try:
+            system_url = self._find_system_resource()
+            result = self._get_url(system_url + '/Bios')
+            if result['ret'] == False:
+                return result
+
+            name_allowed_values = []
+            if "PasswordName@Redfish.AllowableValues" in result['entries']["Actions"]["#Bios.ChangePassword"]:
+                name_allowed_values = result['entries']["Actions"]["#Bios.ChangePassword"]["PasswordName@Redfish.AllowableValues"]
+            else: # TSM
+                result_attribute = self.get_bios_attribute_available_value('all')
+                if result_attribute['ret'] == False:
+                    return result_attribute
+                bios_attribute_list = result_attribute['entries']
+                for bios_attribute in bios_attribute_list:
+                    AttributeName = bios_attribute["AttributeName"]
+                    AttributeType = bios_attribute["Type"]
+                    if AttributeType == "Password":
+                        name_allowed_values.append(AttributeName)
+
+            # Check whether password name is in allowable value list  
+            if len(name_allowed_values) != 0 and password_name not in name_allowed_values:
+                result = {'ret': False, 'msg': "Password name '%s' is not in allowable values '%s'. Please specify allowable password name." % (password_name, name_allowed_values)}
+                return result
+
+            # get parameter requirement if ActionInfo is provided
+            if "@Redfish.ActionInfo" in result['entries']["Actions"]["#Bios.ChangePassword"]:
+                actioninfo_url = result['entries']["Actions"]["#Bios.ChangePassword"]["@Redfish.ActionInfo"]
+                result_actioninfo = self._get_url(actioninfo_url)
+                if result_actioninfo['ret'] == False:
+                    return result_actioninfo
+                if "Parameters" in result_actioninfo['entries']:
+                    for parameter in result_actioninfo['entries']['Parameters']:
+                        # For TSM, need to specify old password
+                        if ("OldPassword" == parameter['Name']) and (True == parameter['Required']):
+                            if old_password == None:
+                                result = {'ret': False, 'msg': "Parameter 'old_password' need to be specified."}
+                                return result
+
+            # Get the change password url
+            change_password_url = result['entries']['Actions']['#Bios.ChangePassword']['target']
+
+            # Set Password info
+            body = {}
+            if old_password == None:
+                body = {"PasswordName": password_name, "NewPassword": new_password}
+            else:
+                body = {"PasswordName": password_name, "NewPassword": new_password, "OldPassword": old_password}
+
+            # Change password
+            response = self.post(change_password_url, body=body)
+            if response.status in [200, 204]:
+                result = {'ret': True, 'msg': "Succeed to set BIOS password."}
+                return result
+            else:
+                LOGGER.error(str(response))
+                return {'ret': False, 'msg': "Failed to set bios password '%s'. Error code is %s. Error message is %s." % \
+                        (password_name, response.status, response.text)}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to set bios password. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
+
+    def set_bios_default(self):
+        """Reset bios attributes to default values.
+        :returns: returns the result to reset bios attributes
+        """
+        result = {}
+        try:
+            system_url = self._find_system_resource()
+            result = self._get_url(system_url + '/Bios')
+            if result['ret'] == False:
+                return result
+
+            reset_bios_url = result['entries']['Actions']['#Bios.ResetBios']['target']
+            body = {}
+            # get parameter requirement if ActionInfo is provided
+            if "@Redfish.ActionInfo" in result['entries']["Actions"]["#Bios.ResetBios"]:
+                actioninfo_url = result['entries']["Actions"]["#Bios.ResetBios"]["@Redfish.ActionInfo"]
+                result_actioninfo = self._get_url(actioninfo_url)
+                if result_actioninfo['ret'] == False:
+                    return result_actioninfo
+                if "Parameters" in result_actioninfo['entries']:
+                    for parameter in result_actioninfo['entries']["Parameters"]:
+                        if ("Name" in parameter) and ("AllowableValues" in parameter):
+                           body[parameter["Name"]] = parameter["AllowableValues"][0]
+
+            # Reset bios default
+            headers = {"Content-Type":"application/json"}
+            if body:
+                response = self.post(reset_bios_url, body=body, headers=headers)
+            elif "settings" in reset_bios_url:
+                body = {"ResetType": "default"}
+                response = self.post(reset_bios_url, body=body, headers=headers)
+            else:
+                response = self.post(reset_bios_url, headers=headers, body=body)
+            if response.status in [200, 204]:
+                return {'ret': True, 'msg': 'Succeed to reset bios attributes.'}
+            else:
+                LOGGER.error(str(response))
+                return {'ret': False, 'msg': "Failed to reset bios attributes. Error code is %s. Error message is %s." % \
+                        (response.status, response.text)}
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to reset bios attributes. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            return {'ret': False, 'msg': msg}
 
     def set_system_power_state(self, reset_type):
         """Set system's power state, like on/off, restart.
@@ -981,11 +1103,21 @@ system_cmd_list = {
         },
         "lenovo_set_system_boot_order": {
                 'help': "Set system's boot order",
-                'args': [{'argname': "--bootorder", 'type': str, 'nargs': "*", 'required': True, 'help': "Bios boot order list, like: 'CD/DVD Rom' 'Hard Disk'"}]
+                'args': [{'argname': "--bootorder", 'type': str, 'nargs': "*", 'required': True, 'help': 'Bios boot order list, like: "CD/DVD Rom" "Hard Disk"'}]
         },
         "set_bios_bootmode": {
                 'help': "Set system's boot mode",
                 'args': [{'argname': "--bootmode", 'type': str, 'nargs': "?", 'required': True, 'help': "System's boot mode. please use 'get_bios_bootmode' to list available boot mode."}]
+        },
+        "set_bios_password": {
+                'help': "Set bios password",
+                'args': [{'argname': "--password_name", 'type': str, 'nargs': "?", 'required': True, 'help': 'Password name. For XCC: "UefiAdminPassword" or "UefiPowerOnPassword", For TSM: "Q01000_Administrator_Password" or "Q01001_User_Password".'},
+                         {'argname': "--new_password", 'type': str, 'nargs': "?", 'required': True, 'help': 'New bios password. Specify "" if you want to clear the password.'},
+                         {'argname': "--old_password", 'type': str, 'nargs': "?", 'required': False, 'help': "Old bios password, only needed for TSM."}]
+        },
+        "set_bios_default": {
+                'help': "Reset bios attributes to default values.",
+                'args': []
         },
         "set_system_boot_once": {
                 'help': "Set system's boot once",
@@ -1095,6 +1227,12 @@ def run_system_subcommand(args):
 
     elif cmd == 'set_bios_bootmode':
         result = client.set_bios_bootmode(args.bootmode)
+
+    elif cmd == 'set_bios_password':
+        result = client.set_bios_password(args.password_name, args.new_password, args.old_password)
+
+    elif cmd == 'set_bios_default':
+        result = client.set_bios_default()
 
     elif cmd == 'set_system_boot_once':
         result = client.set_system_boot_once(args.bootsource, args.bootmode, args.uefi_target, args.enabled)
