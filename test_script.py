@@ -184,6 +184,24 @@ if __name__ == "__main__":
     os.system(msg)
     print("")
 
+    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s set_bios_password --password_name UefiAdminPassword --new_password Aa123456" % (py_name, ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
+    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s set_bios_password --password_name UefiAdminPassword --new_password \"\"" % (py_name, ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
+    msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s set_bios_default" % (py_name, ip, user, password)
+    print(msg)
+    sys.stdout.flush()
+    os.system(msg)
+    print("")
+
     msg = "%s lenovo_redfish_client.py -i %s -u %s -p %s set_system_power_state --reset_type On" % (py_name, ip, user, password)
     print(msg)
     sys.stdout.flush()
