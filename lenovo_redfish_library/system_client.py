@@ -644,13 +644,13 @@ class SystemClient(RedfishBase):
             if result['ret'] == False: 
                 return result
 
-            if "SettingsObject" in result['entries']['@Redfish.Settings'].keys():
+            if '@Redfish.Settings' in result['entries'] and 'SettingsObject' in result['entries']['@Redfish.Settings']:
                 pending_url = result['entries']['@Redfish.Settings']['SettingsObject']['@odata.id']
             else:
                 if 'Self' in system_url:
-                    pending_url = bios_url + "/SD" # TSM
+                    pending_url = system_url + '/Bios' + '/SD' # TSM
                 else:
-                    pending_url = bios_url + "/Pending" # XCC
+                    pending_url = system_url + '/Bios' + '/Pending' # XCC
             result = self.get_bios_attribute_available_value(attribute_name)
             if result['ret'] == False:
                 return result

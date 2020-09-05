@@ -165,7 +165,7 @@ class AccountClient(RedfishBase):
             LOGGER.error(msg)
             return {'ret': False, 'msg': msg}
 
-    def lenovo_create_bmc_user(self, username, password, role, privileges=None):
+    def lenovo_create_bmc_user(self, username, password, role, privileges=None, change_required=None):
         """Create new bmc user account
         :params username: new  username
         :type username: string
@@ -175,6 +175,8 @@ class AccountClient(RedfishBase):
         :type password: string
         :params privileges: user privileges list, like ['Supervisor'] or ['UserAccountManagement', 'RemoteConsoleAccess']
         :type privileges: list
+        :params change_required: 0: False, 1: True. if True, need to change password on next login for this new user created.
+        :type change_required: number
         :returns: returns result of creating bmc user account.
         """
         result = {}
@@ -224,6 +226,8 @@ class AccountClient(RedfishBase):
                     "Password": password,
                     "RoleId": role
                 }
+                if change_required != None:
+                    parameter['PasswordChangeRequired'] = bool(int(change_required))
                 response = self.post(accounts_url, body=parameter, headers=headers)
                 if response.status in [200, 201, 202, 204]:
                     account_id = response.dict['Id']
@@ -486,7 +490,8 @@ account_cmd_list = {
                 'args': [{'argname': "--username", 'type': str, 'nargs': "?", 'required': True, 'help': "New user's name"},
                          {'argname': "--password", 'type': str, 'nargs': "?", 'required': True, 'help': "New user's password"},
                          {'argname': "--role", 'type': str, 'nargs': "?", 'required': True, 'help': "User's role: 'Administrator', 'Operator', 'ReadOnly' or other self-defined role name. If self-defined role name is specified, please ensure the role exists or specify the privileges."},
-                         {'argname': "--privileges", 'type': str, 'nargs': "*", 'required': False, 'help': "New user's privileges, like 'UserAccountManagement' 'RemoteConsoleAccess'"}]
+                         {'argname': "--privileges", 'type': str, 'nargs': "*", 'required': False, 'help': "New user's privileges, like 'UserAccountManagement' 'RemoteConsoleAccess'"},
+                         {'argname': "--change_required", 'type': int, 'nargs': "?", 'required': False, 'help': "0: False, 1: True. if True, need to change password on next login for this new user created"}]
         },
         "update_bmc_user_password": {
                 'help': "Update one bmc user's password. If you want to update the password for first-access, please use update_default_password command",
@@ -551,7 +556,7 @@ def run_account_subcommand(args):
         result = client.lenovo_create_bmc_role(args.role, args.privileges)
 
     elif cmd == 'lenovo_create_bmc_user':
-        result = client.lenovo_create_bmc_user(args.username, args.password, args.role, args.privileges)
+        result = client.lenovo_create_bmc_user(args.username, args.password, args.role, args.privileges, args.change_required)
 
     elif cmd == 'update_bmc_user_password':
         result = client.update_bmc_user_password(args.username, args.password)

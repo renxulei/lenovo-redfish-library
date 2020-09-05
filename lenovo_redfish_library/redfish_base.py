@@ -124,7 +124,11 @@ class RedfishBase(HttpClient):
                     self._suburl_system = member['@odata.id']
                     return self._suburl_system
             if self._suburl_system == '':
-                LOGGER.error("Error_message: Failed to find the system resource. System id is %s ." % self._systemid)
+                msg = "Error_message: Failed to find the system resource. System id is %s ." % self._systemid
+                LOGGER.error(msg)
+                raise Exception(msg)
+        else:
+            raise Exception(result['msg'])
         return self._suburl_system
 
     def _find_manager_resource(self):
@@ -142,7 +146,11 @@ class RedfishBase(HttpClient):
                     self._suburl_manager = member['@odata.id']
                     return self._suburl_manager
             if self._suburl_manager == '':
-                LOGGER.error("Error_message: Failed to find the manager resource. Manager id is %s ." % self._managerid)
+                msg = "Error_message: Failed to find the manager resource. Manager id is %s ." % self._managerid
+                LOGGER.error(msg)
+                raise Exception(msg)
+        else:
+            raise Exception(result['msg'])
         return self._suburl_manager
 
     def _find_chassis_resource(self):
@@ -163,7 +171,11 @@ class RedfishBase(HttpClient):
                     self._suburl_chassis = member['@odata.id']
                     return self._suburl_chassis
             if self._suburl_chassis == '':
-                LOGGER.error("Error_message: Failed to find the chassis resource. Chassis id is %s ." % self._chassisid)
+                msg = "Error_message: Failed to find the chassis resource. Chassis id is %s ." % self._chassisid
+                LOGGER.error(msg)
+                raise Exception(msg)
+        else:
+            raise Exception(result['msg'])
         return self._suburl_chassis
 
     def login(self, username=None, password=None, auth=None):
