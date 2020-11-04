@@ -20,6 +20,7 @@
 ###
 
 import traceback 
+import json
 
 from .redfish_base import RedfishBase
 from .utils import *
@@ -475,6 +476,93 @@ class AccountClient(RedfishBase):
             result = {'ret': False, 'msg': msg}
             return result
 
+    POLICY_STANDARD = {
+        "AccountLockoutThreshold": "The maximum number of times that a user can attempt to log in with an incorrect password before the user account is locked out. If set to 0, accounts are never locked.",
+        "AccountLockoutDuration": "The period of time in seconds, that an account is locked after the number of failed login attempts reaches the account lockout threshold. If this value is '0', no lockout will occur.",
+        "AccountLockoutCounterResetEnabled": "1: True or 0: False. An indication of whether the threshold counter is reset after AccountLockoutCounterResetAfter expires.  If 'true', it is reset.  If 'false', only a successful login resets the threshold counter and if the user reaches the AccountLockoutThreshold limit, the account will be locked out indefinitely and only an administrator-issued reset clears the threshold counter.",
+        "AuthFailureLoggingThreshold": "The number of authorization failures that are allowed before the failed attempt is logged to the manager log.",
+        "LocalAccountAuth": "An indication of how the Service uses the accounts collection within this Account Service as part of authentication.",
+        "AccountLockoutCounterResetAfter": "The period of time in seconds, between the last failed login attempt and the reset of the lockout threshold counter."
+    }
+
+    POLICY_XCC = {
+        "PasswordLength": "Minimum password length",
+        "PasswordExpirationPeriodDays": "The days over that the password will expire. If set to 0, passwords never expire.",
+        "PasswordExpirationWarningPeriod": "The days over that users will receive warnings of password expiration. If set to 0, users are never warned.",
+        "MinimumPasswordReuseCycle": "The minimum number of times that a user must enter a unique password when changing the password before the user can start to reuse passwords. If set to 0, passwords may be reused immediately.",
+        "MinimumPasswordChangeIntervalHours": "Minimum amount of time in hours, that must elapse before a user may change a password again after it has been changed once. The value specified for this setting cannot exceed the value specified for the password expiration period. A small value allows users to more quickly use old passwords. If set to 0, passwords may be changed immediately.",
+        "PasswordChangeOnNextLogin": "1: True or 0: False. When 'True', the default password must be changed before the account can be used.",
+        "PasswordChangeOnFirstAccess": "1: True or 0: False. Determine if a user is required to change the password when the user logs in to the management server for the first time."
+    }
+
+    def set_password_policy(self, policy_name, policy_value):
+        """Set password policy of bmc user accounts, such as AccountLockoutThreshold, password length.
+        :params policy_name: policy name. policy names supported may be different on different platforms.
+        :type username: string
+        :params policy_value: policy value
+        :type password: string
+        :returns: returns result of setting password policy.
+        """
+        result = {}
+        try:
+            result = self._get_url('/redfish/v1/AccountService')
+            if result['ret'] == False:
+                return result
+
+            policy_supported = {}
+            for item in self.POLICY_STANDARD.keys():
+                if item in result['entries']:
+                    policy_supported[item] = self.POLICY_STANDARD[item]
+
+            if 'Oem' in result['entries'] and 'Lenovo' in result['entries']['Oem']:
+                for item in self.POLICY_XCC.keys():
+                    if item in result['entries']['Oem']['Lenovo']:
+                        policy_supported[item] = self.POLICY_XCC[item]
+
+            if policy_name not in policy_supported.keys():
+                policy_str = json.dumps(policy_supported, sort_keys=True, indent=2)
+                result = {'ret': False, 'msg': "Policy name '%s' is not supported on this platform. Items supported: %s." % (policy_name, policy_str)}
+                return result
+            
+            body = {}
+            if policy_name in self.POLICY_STANDARD:
+                if policy_name in ['AccountLockoutCounterResetEnabled']:
+                    body[policy_name] = bool(int(policy_value))
+                elif policy_name in ['LocalAccountAuth']:
+                    body[policy_name] = policy_value
+                else:
+                    body[policy_name] = int(policy_value)
+
+            if policy_name in self.POLICY_XCC:
+                body = {'Oem': {'Lenovo': {}}}
+                if policy_name in ['PasswordChangeOnNextLogin', 'PasswordChangeOnFirstAccess']:
+                    body['Oem']['Lenovo'][policy_name] = bool(int(policy_value))
+                else:
+                    body['Oem']['Lenovo'][policy_name] = int(policy_value)
+
+            account_service_url = result['entries']['@odata.id']
+            if "@odata.etag" in result['entries']:
+                etag = result['entries']['@odata.etag']
+            else:
+                etag = ""
+            headers = {"If-Match": etag}
+            response = self.patch(account_service_url, body=body, headers=headers)
+                                    
+            if response.status in [200, 204]:
+                result = {'ret': True, 'msg': "Succeed to set password policy '%s' to '%s'." % (policy_name, policy_value)}
+                return result
+            else:
+                LOGGER.error(str(response))
+                result = {'ret': False, 'msg': "Failed to set password policy '%s'. Error code is %s. Error message is %s. " % \
+                         (policy_name, response.status, response.text)}
+                return result
+        except Exception as e:
+            LOGGER.debug("%s" % traceback.format_exc())
+            msg = "Failed to set password policy. Error message: %s" % repr(e)
+            LOGGER.error(msg)
+            result = {'ret': False, 'msg': msg}
+            return result
+
 account_cmd_list = {
         "get_bmc_users": {
                 'help': "Get user accounts of bmc",
@@ -502,6 +590,11 @@ account_cmd_list = {
                 'help': "Update one bmc user's password. If you want to update the password for first-access, please use update_default_password command",
                 'args': [{'argname': "--password", 'type': str, 'nargs': "?", 'required': True, 'help': "New password"},
                          {'argname': "--account_id", 'type': str, 'nargs': "?", 'required': False, 'help': "Account id. Default is 1, id of user 'USERID'."}]
+        },
+        "set_password_policy": {
+                'help': "Set password policy of bmc user accounts, such as AccountLockoutThreshold, password length.",
+                'args': [{'argname': "--policy_name", 'type': str, 'nargs': "?", 'required': True, 'help': "Policy name. policy names supported may be different on different platforms"},
+                         {'argname': "--policy_value", 'type': str, 'nargs': "?", 'required': True, 'help': "Policy value."}]
         },
         "delete_bmc_user": {
                 'help': "Delete one user account of bmc",
@@ -565,6 +658,9 @@ def run_account_subcommand(args):
         if args.account_id == None:
             args.account_id = '1'
         result = client.update_default_password(args.password, args.account_id)
+
+    elif cmd == 'set_password_policy':
+        result = client.set_password_policy(args.policy_name, args.policy_value)
 
     elif cmd == 'delete_bmc_user':
         result = client.delete_bmc_user(args.username)
