@@ -23,7 +23,7 @@ lenovo_redfish_library    - Library folder
 + config.ini              - Config file, define ip, user, password and auth. These values will be used to setup redfish connection if they are not specified on command line.
 
 test_script.py              - Test script for XCC (Intel products, AMD2P Rome/Milan products)  
-test_script_amd.py          - Test script for for TSM (AMD1P Rome/Milan products)
+test_script_amd.py          - Test script for TSM (AMD1P Rome/Milan products)
 
 
 For more information on the Redfish API, visit <http://redfish.dmtf.org/>
