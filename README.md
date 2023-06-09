@@ -11,7 +11,7 @@ This project provides:
 lenovo_redfish_client.py  - Commandline script, manage server via redfish by using lenovo_redfish_library.  
 lenovo_redfish_sample.py  - Sample script, show how to use lenovo_redfish_library directly.  
 lenovo_redfish_library    - Library folder
-+ __init__.py             - Init module to export main, ManagerClient, SystemClient, ChassisClient, UpdateClient Class and AccountClient Class.
++ \_\_init\_\_.py             - Init module to export main, ManagerClient, SystemClient, ChassisClient, UpdateClient Class and AccountClient Class.
 + main.py                 - Main module for commandline script, add/parse the parameters inputed from command line. 
 + system_client.py        - SystemClient Class, for system management. The commands supported, please refer to below.
 + manager_client.py       - ManagerClient Class, for bmc management. The commands supported, please refer to below.
