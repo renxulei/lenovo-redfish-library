@@ -7,9 +7,9 @@ Description
 
 This project includes a set of Python scripts that utilize the Redfish API to manage Lenovo ThinkSystem servers.  The scripts use the DMTF python-redfish-library <https://github.com/DMTF/python-redfish-library>
 
-This project provides:
-lenovo_redfish_client.py  - Commandline script, manage server via redfish by using lenovo_redfish_library.
-lenovo_redfish_sample.py  - Sample script, show how to use lenovo_redfish_library directly.
+This project provides:  
+lenovo_redfish_client.py  - Commandline script, manage server via redfish by using lenovo_redfish_library.  
+lenovo_redfish_sample.py  - Sample script, show how to use lenovo_redfish_library directly.  
 lenovo_redfish_library    - Library folder
 + __init__.py             - Init module to export main, ManagerClient, SystemClient, ChassisClient, UpdateClient Class and AccountClient Class.
 + main.py                 - Main module for commandline script, add/parse the parameters inputed from command line. 
@@ -22,8 +22,8 @@ lenovo_redfish_library    - Library folder
 + utils.py                - Utility module, for logging, reading config file and so on.
 + config.ini              - Config file, define ip, user, password and auth. These values will be used to setup redfish connection if they are not specified on command line.
 
-test_script.py              - Test script for all commands, for XCC (Intel products)
-test_script_amd.py          - Test script for all commands, for TSM (AMD 1P products)
+test_script.py              - Test script for XCC (Intel products, AMD2P Rome/Milan products)  
+test_script_amd.py          - Test script for for TSM (AMD1P Rome/Milan products)
 
 
 For more information on the Redfish API, visit <http://redfish.dmtf.org/>
