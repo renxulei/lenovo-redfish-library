@@ -1,6 +1,6 @@
 # lenovo-redfish-library
 
-Redfish library and commandline scriots for using the Redfish API to manage Lenovo servers
+Redfish library and commandline scripts for using the Redfish API to manage Lenovo servers
 
 Description
 ----------
